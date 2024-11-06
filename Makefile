@@ -22,6 +22,7 @@ endif
 
 # Directory settings
 SRC_DIR = src
+INC_DIR = include
 BUILD_DIR = build
 
 # Targets for CPU and CUDA builds
@@ -35,8 +36,8 @@ $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)
     
 # Compile debug CUDA executable
-$(BUILD_DIR)/executable_cuda$(EXEC): $(SRC_DIR)/main.cu
-	@$(cuCC) $(cuCFLAGS) -o $(BUILD_DIR)/executable_cuda$(EXEC) $(SRC_DIR)/main.cu 
+$(BUILD_DIR)/executable_cuda$(EXEC): $(SRC_DIR)/main.cu $(INC_DIR)/*
+	@$(cuCC) $(cuCFLAGS) -o $(BUILD_DIR)/executable_cuda$(EXEC) -I $(INC_DIR)/ $(SRC_DIR)/main.cu 
 
 # Clean build directories
 clean:
