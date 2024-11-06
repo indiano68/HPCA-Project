@@ -3,18 +3,35 @@
 #include<tools.hpp>
 #include<vector>
 #include<algorithm>
-#include<path_merge.hpp>
+#include<path_merge.cuh>
 
 
 int main() 
 {
-    std::vector<int> int_vector_0    = build_random_vector<int>(10,0,100);
-    std::vector<int> int_vector_1    = build_random_vector<int>(10,0,100);
-    std::sort(int_vector_0.begin(),int_vector_0.end());
+    std::vector<double> int_vector_1    = build_random_vector<double>(10,0,100);
+    std::vector<double> int_vector_2    = build_random_vector<double>(10,0,100);
+    std::vector<double> int_vector_out(int_vector_1.size()+int_vector_2.size());
+    double * v_1_gpu, * v_2_gpu, * v_out_gpu;
+
     std::sort(int_vector_1.begin(),int_vector_1.end());
-    print_vector(int_vector_0);
+    std::sort(int_vector_2.begin(),int_vector_2.end());
+
+    cudaMalloc(&v_1_gpu,int_vector_1.size()    *sizeof(double));
+    cudaMalloc(&v_2_gpu,int_vector_2.size()    *sizeof(double));
+    cudaMalloc(&v_out_gpu,int_vector_out.size()*sizeof(double));
+
+    cudaMemcpy(v_1_gpu,int_vector_1.data(),int_vector_1.size()*sizeof(double),cudaMemcpyHostToDevice);
+    cudaMemcpy(v_2_gpu,int_vector_2.data(),int_vector_2.size()*sizeof(double),cudaMemcpyHostToDevice);
+
+    mergeSmall_k_gpu<<<1,1>>>(v_1_gpu,int_vector_1.size(),
+                              v_2_gpu,int_vector_2.size(),
+                              v_out_gpu,int_vector_out.size());
+    cudaMemcpy(int_vector_out.data(),v_out_gpu,int_vector_out.size()*sizeof(double),cudaMemcpyDeviceToHost);                          
+
     print_vector(int_vector_1);
-    auto merged  = path_merge(int_vector_0, int_vector_1);
+    print_vector(int_vector_2);
+    auto merged  = mergeSmall_k_cpu(int_vector_1, int_vector_2);
     print_vector(merged);
+    print_vector(int_vector_out);
 
 }
