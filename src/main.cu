@@ -5,36 +5,54 @@
 #include<algorithm>
 #include<path_merge.cuh>
 
+#define THREADS_PER_BLOCK 5
+
 int main()
 {
 
     printGPUInfo();
 
-    std::vector<double> int_vector_1    = build_random_vector<double>(8,0,100);
-    std::vector<double> int_vector_2    = build_random_vector<double>(6,0,100);
-    std::vector<double> int_vector_out(int_vector_1.size()+int_vector_2.size());
-    double * v_1_gpu, * v_2_gpu, * v_out_gpu;
+    //std::vector<double> A    = build_random_vector<double>(4,0,100);
+    //std::vector<double> B    = build_random_vector<double>(6,0,100);
+    std::vector<double> A = {1, 3, 5, 7};
+    std::vector<double> B = {0, 2, 4, 6, 8, 10};
 
-    std::sort(int_vector_1.begin(),int_vector_1.end());
-    std::sort(int_vector_2.begin(),int_vector_2.end());
+    std::vector<double> M(A.size()+B.size());
+    double * A_dev, * B_dev, * M_dev;
 
-    cudaMalloc(&v_1_gpu,int_vector_1.size()    *sizeof(double));
-    cudaMalloc(&v_2_gpu,int_vector_2.size()    *sizeof(double));
-    cudaMalloc(&v_out_gpu,int_vector_out.size()*sizeof(double));
+    std::sort(A.begin(),A.end());
+    std::sort(B.begin(),B.end());
 
-    cudaMemcpy(v_1_gpu,int_vector_1.data(),int_vector_1.size()*sizeof(double),cudaMemcpyHostToDevice);
-    cudaMemcpy(v_2_gpu,int_vector_2.data(),int_vector_2.size()*sizeof(double),cudaMemcpyHostToDevice);
+    cudaMalloc(&A_dev,A.size()    *sizeof(double));
+    cudaMalloc(&B_dev,B.size()    *sizeof(double));
+    cudaMalloc(&M_dev,M.size()*sizeof(double));
 
-    mergeSmall_k_gpu<<<1,1>>>(v_1_gpu,int_vector_1.size(),
-                              v_2_gpu,int_vector_2.size(),
-                              v_out_gpu,int_vector_out.size());
+    cudaMemcpy(A_dev,A.data(),A.size()*sizeof(double),cudaMemcpyHostToDevice);
+    cudaMemcpy(B_dev,B.data(),B.size()*sizeof(double),cudaMemcpyHostToDevice);
 
-    cudaMemcpy(int_vector_out.data(),v_out_gpu,int_vector_out.size()*sizeof(double),cudaMemcpyDeviceToHost);                         
+    // dim3 block(M.size()), grid(1);
 
-    print_vector(int_vector_1, "A = ");
-    print_vector(int_vector_2, "B = ");
-    auto merged  = mergeSmall_k_cpu(int_vector_1, int_vector_2);
-    print_vector(merged, "CPU merge: ");
-    print_vector(int_vector_out, "GPU merge: ");
+    // mergeSmall_k_gpu_v2<<<grid, block>>>(A_dev,A.size(),
+    //                           B_dev,B.size(),
+    //                           M_dev,M.size());
+
+    constexpr int block_size = THREADS_PER_BLOCK;
+    dim3 grid(2), block(block_size);
+    mergeSmall_k_gpu_multiblock<<<grid, block>>>(A_dev,A.size(),
+                              B_dev,B.size(),
+                              M_dev,M.size());
+
+    //check for kernel errors
+    CUDA_CHECK(cudaPeekAtLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaGetLastError());
+
+    cudaMemcpy(M.data(),M_dev,M.size()*sizeof(double),cudaMemcpyDeviceToHost);                         
+
+    print_vector(A, "A = ");
+    print_vector(B, "B = ");
+    auto cpu_merge  = mergeSmall_k_cpu(A, B);
+    // print_vector(cpu_merge, "CPU merge: ");
+    print_vector(M, "GPU merge: ");
 
 }
