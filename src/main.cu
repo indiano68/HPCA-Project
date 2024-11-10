@@ -14,8 +14,11 @@ int main()
 
     //std::vector<double> A    = build_random_vector<double>(4,0,100);
     //std::vector<double> B    = build_random_vector<double>(6,0,100);
-    std::vector<double> A = {1, 3, 5, 7};
-    std::vector<double> B = {0, 2, 4, 6, 8, 10};
+    // std::vector<double> A = {1, 3, 5, 7};
+    // std::vector<double> B = {0, 2, 4, 6, 8, 10};
+
+    std::vector<double> A = {1, 3, 5, 7, 8, 50, 4, 21, 41, 52};
+    std::vector<double> B = {0, 2, 4, 6, 8, 10, 11, 49, 51, 53};
 
     std::vector<double> M(A.size()+B.size());
     double * A_dev, * B_dev, * M_dev;
@@ -37,7 +40,7 @@ int main()
     //                           M_dev,M.size());
 
     constexpr int block_size = THREADS_PER_BLOCK;
-    dim3 grid(2), block(block_size);
+    dim3 grid(4), block(block_size);
     mergeSmall_k_gpu_multiblock<<<grid, block>>>(A_dev,A.size(),
                               B_dev,B.size(),
                               M_dev,M.size());
