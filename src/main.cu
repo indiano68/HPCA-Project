@@ -15,7 +15,7 @@ int main()
     // std::vector<double> A = {1, 3, 5, 7};
     // std::vector<double> B = {0, 2, 4, 6, 8, 10};
 
-    std::vector<double> A = {30,50,60,80,110};
+    std::vector<double> A = {3,5,6,8,11};
     std::vector<double> B = {10,20,40,70,90,100,120};
 
     std::vector<double> M(A.size()+B.size());
@@ -31,18 +31,18 @@ int main()
     cudaMemcpy(A_dev,A.data(),A.size()*sizeof(double),cudaMemcpyHostToDevice);
     cudaMemcpy(B_dev,B.data(),B.size()*sizeof(double),cudaMemcpyHostToDevice);
 
-    // dim3 block(M.size()), grid(1);
+    dim3 block(M.size()), grid(1);
 
-    // mergeSmall_k_gpu_v2<<<grid, block>>>(A_dev,A.size(),
-    //                           B_dev,B.size(),
-    //                           M_dev,M.size());
-
-    constexpr int block_size = THREADS_PER_BLOCK;
-    int num_blocks = (M.size() + block_size - 1) / block_size;
-    dim3 grid(num_blocks), block(block_size);
-    mergeSmall_k_gpu_multiblock<<<grid, block>>>(A_dev,A.size(),
+    mergeSmall_k_gpu<<<grid, block>>>(A_dev,A.size(),
                               B_dev,B.size(),
                               M_dev,M.size());
+
+    // constexpr int block_size = THREADS_PER_BLOCK;
+    // int num_blocks = (M.size() + block_size - 1) / block_size;
+    // dim3 grid(num_blocks), block(block_size);
+    // mergeSmall_k_gpu_multiblock<<<grid, block>>>(A_dev,A.size(),
+    //                           B_dev,B.size(),
+    //                           M_dev,M.size());
 
     //check for kernel errors
     CUDA_CHECK(cudaPeekAtLastError());

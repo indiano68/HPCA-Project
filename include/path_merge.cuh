@@ -217,26 +217,34 @@ while (true)
 }
 
 template <class T>
-__device__ int2 block_bin_search(const T *A_ptr, const T *B_ptr, int2 K, int2 P, bool blk_left_border, bool blk_upper_border, bool blk_lower_border)
+__device__ void block_bin_search(const T *A_local, const T *B_local, int2 K, int2 P, bool blk_left_border, bool blk_right_border, bool blk_top_border, bool blk_bottom_border, T *M_global)
 {
+
+  int tid = threadIdx.x + blockIdx.x * blockDim.x;
 
   while (true)
   {
     uint32_t offset = abs(K.y - P.y) / 2;
     int2 Q = {K.x + (int)offset, K.y - (int)offset};
 
-    // i primi due if detectano se il punto è plausibile
-    if ((blk_lower_border && Q.y == blockDim.x - 1) || (blk_left_border &&  Q.x == 0) || A_ptr[Q.y] >= B_ptr[Q.x - 1])
+    bool Q_bottom_border = (blk_bottom_border && Q.y == blockDim.x - 1);
+    bool Q_left_border = (blk_left_border && Q.x == 0);
+    bool Q_right_border = (blk_right_border && Q.x == blockDim.x - 1);
+    bool Q_top_border = (blk_top_border && Q.y == 0);
+
+    if (Q_bottom_border || Q_left_border || A_local[Q.y] >= B_local[Q.x - 1])
     {
-
-      if(threadIdx.x == 3 && blockIdx.x == 1)
+      if (Q_right_border || Q_top_border || A_local[Q.y - 1] <= B_local[Q.x])
       {
-        printf("bin_search, A[%d - 1] = %f <= B[%d] = %f\n", Q.y, A_ptr[Q.y - 1], Q.x, B_ptr[Q.x]);
-      }
-
-      if (/*(blk_right_border && Q.x == blockDim.x - 1) ||*/ (blk_upper_border && Q.y == 0) || A_ptr[Q.y - 1] <= B_ptr[Q.x])
-      {
-        return Q;
+        if (!Q_bottom_border && (Q_right_border || A_local[Q.y] <= B_local[Q.x]))
+        {
+          M_global[tid] = A_local[Q.y];
+        }
+        else
+        {
+          M_global[tid] = B_local[Q.x];
+        }
+        break;
       }
       else
       {
@@ -261,8 +269,8 @@ __global__ void mergeSmall_k_gpu_multiblock(const T *A_ptr,
 
   static_assert(std::is_arithmetic<T>::value, "Template type must be numeric");
 
-  __shared__ int2 Q_base;
   __shared__ T A_shared[THREADS_PER_BLOCK + 1], B_shared[THREADS_PER_BLOCK + 1];
+  __shared__ int2 Q_base;
 
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -285,15 +293,19 @@ __global__ void mergeSmall_k_gpu_multiblock(const T *A_ptr,
     
     Q_base = explorative_search(A_ptr, A_size, B_ptr, B_size, K_explorative, P_explorative);
 
-    printf("Explorative search (block %d) found Q_base(%d,%d)\n", blockIdx.x, Q_base.x, Q_base.y);
+    //printf("Explorative search (block %d) found Q_base(%d,%d)\n", blockIdx.x, Q_base.x, Q_base.y);
   }
-
   __syncthreads();
 
   int x_end = Q_base.x;
   int y_end = Q_base.y;
   int x_start = x_end >= blockDim.x ? x_end - blockDim.x + 1: 0;
   int y_start = y_end >= blockDim.x ? y_end - blockDim.x + 1: 0;
+
+  bool blk_left_border = (x_start == 0);
+  bool blk_top_border = (y_start == 0);
+  bool blk_bottom_border = (y_end == A_size);
+  bool blk_right_border = (x_end == B_size);
 
   A_shared[threadIdx.x + 1] = y_start + threadIdx.x < A_size ? A_ptr[y_start + threadIdx.x] : 0;
   B_shared[threadIdx.x + 1] = x_start + threadIdx.x < B_size ? B_ptr[x_start + threadIdx.x] : 0;
@@ -304,16 +316,6 @@ __global__ void mergeSmall_k_gpu_multiblock(const T *A_ptr,
     B_shared[0] = (x_start > 0) ? B_ptr[x_start - 1] : 0;
   }
 
-  __syncthreads();
-
-  if(threadIdx.x == 0)
-  {
-    for(int i = 0; i < blockDim.x + 1; i++)
-    {
-      printf("block %d, A_shared[%d] = %f, B_shared[%d] = %f\n", blockIdx.x, i, A_shared[i], i, B_shared[i]);
-    }
-  }
-
   int base = x_end - x_start; //base del triangolo
   int height = y_end - y_start; //altezza del triangolo
 
@@ -321,7 +323,6 @@ __global__ void mergeSmall_k_gpu_multiblock(const T *A_ptr,
   int reverse_tid = blockDim.x - threadIdx.x - 1;
 
   int2 K, P;
-  if(threadIdx.x == 0) printf("block %d, x_start = %d, x_end = %d, y_start = %d, y_end = %d\n", blockIdx.x, x_start, x_end, y_start, y_end);
 
   K.x = base >= reverse_tid ? base - reverse_tid : 0;
   K.y = base >= reverse_tid ? height : threadIdx.x;
@@ -329,27 +330,9 @@ __global__ void mergeSmall_k_gpu_multiblock(const T *A_ptr,
   P.x = height >= reverse_tid ? base : threadIdx.x;
   P.y = height >= reverse_tid ? height - reverse_tid : 0;
 
-  bool block_on_left_border = (x_start == 0);
-  bool block_on_upper_border = (y_start == 0);
-  //bool block_on_right_border = (x_end == B_size);
-  bool block_on_lower_border = (y_end == A_size);
-
-  printf("Thread %d from block %d searching on local diagonal K(%d,%d) - P(%d,%d)\n", threadIdx.x, blockIdx.x, K.x, K.y, P.x, P.y);
-
-  int2 Q = block_bin_search(A_shared + 1, B_shared + 1, K, P, block_on_left_border, block_on_upper_border, block_on_lower_border);
-
-  if ((block_on_lower_border && Q.y == blockDim.x - 1) || B_shared[Q.x + 1] < A_shared[Q.y + 1])
-  {
-      M_ptr[tid] = B_shared[Q.x + 1];
-  }
-  else
-  {
-      M_ptr[tid] = A_shared[Q.y + 1];
-  }
-
-  printf("Thread %d from block %d found Q(%d,%d)\n", threadIdx.x, blockIdx.x, Q.x, Q.y);
-
   __syncthreads();
+
+  block_bin_search(A_shared + 1, B_shared + 1, K, P, blk_left_border, blk_right_border, blk_top_border, blk_bottom_border, M_ptr);
 
   return;
 }
