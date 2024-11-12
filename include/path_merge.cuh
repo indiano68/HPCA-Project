@@ -1,11 +1,6 @@
 #pragma once
 #include <vector>
 typedef int2 coordinate;
-// struct coordinate
-// {
-//     int32_t x;
-//     int32_t y;
-// };
 
 template <class T>
 std::vector<T> mergeSmall_k_cpu(std::vector<T> vector_1, std::vector<T> vector_2)
@@ -110,6 +105,10 @@ __global__ void mergeSmall_k2(const T *v_1_ptr,
     coordinate K = {0, 0};
     coordinate P = {0, 0};
     coordinate Q = {0, 0};
+
+    __shared__ int2 Q_shift;
+    __shared__ T A[32];
+    __shared__ T B[32];
     if (thread_idx > v_1_size)
     {
         K.x = thread_idx - v_1_size;
@@ -122,9 +121,8 @@ __global__ void mergeSmall_k2(const T *v_1_ptr,
         K.y = thread_idx;
         P.x = thread_idx;
     }
-    __shared__ int2 Q_shift;
-    //  Do Binary search in last thread of block
-    if (threadIdx.x == blockDim.x - 1)
+    
+    if ((threadIdx.x == blockDim.x - 1 && blockIdx.x != gridDim.x - 1) || thread_idx == v_out_size)
     {
         Q_shift.x = 0;
         Q_shift.y = 0;
@@ -152,34 +150,43 @@ __global__ void mergeSmall_k2(const T *v_1_ptr,
             }
         }
     }
+    if(thread_idx == v_out_size)
+    {
+        if(v_1_ptr[v_1_size-1] > v_2_ptr[v_2_size-1] )
+            Q_shift.y += 31-threadIdx.x;
+        else
+            Q_shift.x += 31-threadIdx.x;
+    }
     __syncthreads();
-    printf("Block %d Q_shift %d %d \n", blockIdx.x, Q_shift.x, Q_shift.y);
-    K = {Q_shift.x - (int)blockDim.x + (int)threadIdx.x +1, Q_shift.y};
-    P = {Q_shift.x , Q_shift.y - (int)blockDim.x + (int)threadIdx.x +1};
+
+    int shift_k =  Q_shift.x - (int)blockDim.x + (int)threadIdx.x +1 >=0 ? 0: -1*(Q_shift.x - (int)blockDim.x + (int)threadIdx.x +1);
+    int shift_q =  Q_shift.y - (int)blockDim.x + (int)threadIdx.x +1 >=0 ? 0: -1*(Q_shift.y - (int)blockDim.x + (int)threadIdx.x +1);
+    K = {Q_shift.x - (int)blockDim.x + (int)threadIdx.x +1 +shift_k, Q_shift.y -shift_k};
+    P = {Q_shift.x -shift_q , Q_shift.y - (int)blockDim.x + (int)threadIdx.x +1 +shift_q };
     Q = {0, 0};
-    __shared__ T A[4];
-    __shared__ T B[4];
-    int base_idx_a = max(0,Q_shift.y - (int)blockDim.x + 1);
-    int base_idx_b = max(0,Q_shift.x - (int)blockDim.x + 1);
-    A[threadIdx.x] = v_1_ptr[base_idx_a + threadIdx.x];
-    B[threadIdx.x] = v_2_ptr[base_idx_b + threadIdx.x];
+    
+    A[threadIdx.x] = v_1_ptr[min(max(0,(Q_shift.y - (int)threadIdx.x)),(int)v_1_size-1)];
+    B[threadIdx.x] = v_2_ptr[min(max(0,(Q_shift.x - (int)threadIdx.x)),(int)v_2_size-1)];
+
     __syncthreads();
+
     while (true && thread_idx < v_out_size)
     {
         size_t offset = abs((K.y - P.y)) / 2;
         Q.x = K.x + offset;
         Q.y = K.y - offset;
-        if (Q.y >= 0 && Q.x <= v_2_size && (Q.y == v_1_size || Q.x == 0 || A[Q.y-base_idx_a] > B[Q.x - base_idx_b -1]))
+        if (Q.y >= 0 && Q.x <= v_2_size && (Q.y == v_1_size
+         || Q.x == 0 || A[Q_shift.y -Q.y] > B[Q_shift.x -Q.x + 1]))
         {
-            if (Q.x == v_2_size || Q.y == 0 || A[Q.y -base_idx_a - 1] <= B[Q.x -base_idx_b])
+            if (Q.x == v_2_size || Q.y == 0 || A[Q_shift.y -Q.y+1] <= B[Q_shift.x -Q.x])
             {
-                if (Q.y < v_1_size && (Q.x == v_2_size || A[Q.y-base_idx_a] <= B[Q.x-base_idx_b]))
+                if (Q.y < v_1_size && (Q.x == v_2_size || A[Q_shift.y -Q.y] <= B[Q_shift.x -Q.x]))
                 {
-                    v_out_ptr[thread_idx] = A[Q.y-base_idx_a];
+                    v_out_ptr[thread_idx] = A[Q_shift.y -Q.y];
                 }
                 else
                 {
-                    v_out_ptr[thread_idx] = B[Q.x -base_idx_b];
+                    v_out_ptr[thread_idx] = B[Q_shift.x -Q.x];
                 }
                 break;
             }
@@ -195,4 +202,5 @@ __global__ void mergeSmall_k2(const T *v_1_ptr,
             P.y = Q.y + 1;
         }
     }
+
 }
