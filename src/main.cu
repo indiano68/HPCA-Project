@@ -3,58 +3,81 @@
 #include<tools.hpp>
 #include<vector>
 #include<algorithm>
+#include<chrono>
+#include <thrust/device_vector.h>
+#include <thrust/merge.h>
+#include <thrust/execution_policy.h>
 #include<path_merge.cuh>
+
+#include <wrapper.cuh>
+
+template <typename T>
+std::vector<T> merge_arrays_thrust(const std::vector<T>& A, const std::vector<T>& B)
+{
+    // Create device vectors from the input std::vectors
+    thrust::device_vector<T> d_A = A;
+    thrust::device_vector<T> d_B = B;
+
+    thrust::device_vector<T> result(A.size() + B.size());
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start);
+
+    thrust::merge(thrust::device,
+                  d_A.begin(), d_A.end(),
+                  d_B.begin(), d_B.end(),
+                  result.begin());
+
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+
+    std::cout << "CUDA Thrust merge time: " << milliseconds << "ms" << std::endl;
+
+    // Convert the result back to std::vector and return
+    return std::vector<T>(result.begin(), result.end());
+}
 
 int main()
 {
 
     printGPUInfo();
 
-    //std::vector<double> A    = build_random_vector<double>(4,0,100);
-    //std::vector<double> B    = build_random_vector<double>(6,0,100);
-    // std::vector<double> A = {1, 3, 5, 7};
-    // std::vector<double> B = {0, 2, 4, 6, 8, 10};
-
-    std::vector<double> A = {3,5,6,8,11};
-    std::vector<double> B = {10,20,40,70,90,100,120};
-
-    std::vector<double> M(A.size()+B.size());
-    double * A_dev, * B_dev, * M_dev;
+    std::vector<double> A = build_random_vector<double>(349243, 1, 10);
+    std::vector<double> B = build_random_vector<double>(11133, 1, 10);
 
     std::sort(A.begin(),A.end());
     std::sort(B.begin(),B.end());
 
-    cudaMalloc(&A_dev,A.size()    *sizeof(double));
-    cudaMalloc(&B_dev,B.size()    *sizeof(double));
-    cudaMalloc(&M_dev,M.size()*sizeof(double));
+    auto gpu_merge = call_merge_kernel(A, B);
 
-    cudaMemcpy(A_dev,A.data(),A.size()*sizeof(double),cudaMemcpyHostToDevice);
-    cudaMemcpy(B_dev,B.data(),B.size()*sizeof(double),cudaMemcpyHostToDevice);
+    auto thrust_merge = merge_arrays_thrust(A, B);
 
-    dim3 block(M.size()), grid(1);
+    /*
+    auto start = std::chrono::high_resolution_clock::now();
 
-    mergeSmall_k_gpu<<<grid, block>>>(A_dev,A.size(),
-                              B_dev,B.size(),
-                              M_dev,M.size());
-
-    // constexpr int block_size = THREADS_PER_BLOCK;
-    // int num_blocks = (M.size() + block_size - 1) / block_size;
-    // dim3 grid(num_blocks), block(block_size);
-    // mergeSmall_k_gpu_multiblock<<<grid, block>>>(A_dev,A.size(),
-    //                           B_dev,B.size(),
-    //                           M_dev,M.size());
-
-    //check for kernel errors
-    CUDA_CHECK(cudaPeekAtLastError());
-    CUDA_CHECK(cudaDeviceSynchronize());
-    CUDA_CHECK(cudaGetLastError());
-
-    cudaMemcpy(M.data(),M_dev,M.size()*sizeof(double),cudaMemcpyDeviceToHost);                         
-
-    print_vector(A, "A = ");
-    print_vector(B, "B = ");
     auto cpu_merge  = mergeSmall_k_cpu(A, B);
-    // print_vector(cpu_merge, "CPU merge: ");
-    print_vector(M, "GPU merge: ");
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::cout << "CPU merge time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+    */
+
+    //compare the results
+    if(std::equal(gpu_merge.begin(), gpu_merge.end(), thrust_merge.begin()))
+    {
+        std::cout<<"TEST PASSED!"<<std::endl;
+    }
+    else
+    {
+        std::cout<<"GPU and CPU results are not equal"<<std::endl;
+    }
+
+    // print_vector(gpu_merge, "GPU merge result");
+    // print_vector(cpu_merge, "CPU merge result");
+
+    return;
 
 }

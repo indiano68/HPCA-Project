@@ -24,7 +24,8 @@ std::vector<T> build_random_vector(size_t size, T min_value, T max_value)
     random_vector.reserve(size);
     // Random number generation setup
     std::random_device rd;
-    std::mt19937 gen(rd());
+    auto seed = rd() + static_cast<unsigned int>(time(nullptr));
+    std::mt19937 gen(seed);
     std::uniform_real_distribution<> dis(static_cast<double>(min_value), static_cast<double>(max_value));
 
     for (size_t i = 0; i < size; ++i) {
