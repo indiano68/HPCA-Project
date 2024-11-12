@@ -46,8 +46,8 @@ int main()
 
     printGPUInfo();
 
-    std::vector<double> A = build_random_vector<double>(349243, 1, 10);
-    std::vector<double> B = build_random_vector<double>(11133, 1, 10);
+    std::vector<double> A = build_random_vector<double>(1000000, 1, 10);
+    std::vector<double> B = build_random_vector<double>(100000, 1, 10);
 
     std::sort(A.begin(),A.end());
     std::sort(B.begin(),B.end());

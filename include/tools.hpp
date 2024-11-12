@@ -49,6 +49,39 @@ void print_vector(std::vector<T> vector, const std::string& message = "")
 
 }
 
+template <class T>
+std::vector<T> mergeSmall_k_cpu(std::vector<T> A, std::vector<T> B)
+{
+  static_assert(std::is_arithmetic<T>::value, "Template type must be numeric");
+
+  size_t A_size = A.size();
+  size_t B_size = B.size();
+  size_t M_size = A_size + B_size;
+  std::vector<T> M(M_size);
+
+  size_t i = 0, j = 0;
+
+  while (i + j < M_size)
+  {
+    if (i >= A_size)
+    {
+      M[i + j] = B[j];
+      j++;
+    }
+    else if (j >= B_size || A[i] < B[j])
+    {
+      M[i + j] = A[i];
+      i++;
+    }
+    else
+    {
+      M[i + j] = B[j];
+      j++;
+    }
+  }
+  return M;
+}
+
 void printGPUInfo()
 {
   int nDevices;
