@@ -13,14 +13,18 @@ __global__ void emptyk()
     return;
 }
 
-#define cudaCheckError(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+#define cudaCheckError(ans)                   \
+    {                                         \
+        gpuAssert((ans), __FILE__, __LINE__); \
+    }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort = true)
 {
-   if (code != cudaSuccess) 
-   {
-      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-      if (abort) exit(code);
-   }
+    if (code != cudaSuccess)
+    {
+        fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+        if (abort)
+            exit(code);
+    }
 }
 
 int main(int argc, char **argv)
@@ -45,14 +49,14 @@ int main(int argc, char **argv)
     std::sort(vector_1.begin(), vector_1.end());
     std::sort(vector_2.begin(), vector_2.end());
 
-    int block_size =(vector_1.size()+vector_2.size())/32 ;
+    int block_size = (vector_1.size() + vector_2.size()) / 32;
 
     cudaMalloc(&v_1_gpu, vector_sizeof(vector_1));
     cudaMalloc(&v_2_gpu, vector_sizeof(vector_2));
     cudaMalloc(&v_out_gpu0, vector_sizeof(vector_out0));
     cudaMalloc(&v_out_gpu1, vector_sizeof(vector_out0));
 
-    emptyk<<<1,1>>>();
+    emptyk<<<1, 1>>>();
     cudaMemcpy(v_1_gpu, vector_1.data(), vector_sizeof(vector_1), cudaMemcpyHostToDevice);
     cudaMemcpy(v_2_gpu, vector_2.data(), vector_sizeof(vector_2), cudaMemcpyHostToDevice);
     cudaFree(0);
@@ -61,9 +65,9 @@ int main(int argc, char **argv)
     cudaEventRecord(start, 0);
     // for(int i =0; i<100; i++)
     {
-        mergeSmall_k2<<<(vector_out0.size()+1024)/1024, 1024>>>(v_1_gpu, vector_1.size(),
-                                v_2_gpu, vector_2.size(),
-                                v_out_gpu0, vector_out0.size());
+        mergeSmall_k2<<<(vector_out0.size() + 64) / 64, 64>>>(v_1_gpu, vector_1.size(),
+                                                              v_2_gpu, vector_2.size(),
+                                                              v_out_gpu0, vector_out0.size());
         cudaCheckError(cudaDeviceSynchronize());
     }
     cudaEventRecord(stop, 0);
@@ -77,26 +81,24 @@ int main(int argc, char **argv)
     // for(int i =0; i<100; i++)
     {
 
-            mergeSmall_k1<<<(vector_out0.size()+1024)/1024, 1024>>>(v_1_gpu, vector_1.size(),
-                                    v_2_gpu, vector_2.size(),
-                                v_out_gpu1, vector_out1.size());
+        mergeSmall_k1<<<(vector_out0.size() + 1024) / 1024, 1024>>>(v_1_gpu, vector_1.size(),
+                                                                    v_2_gpu, vector_2.size(),
+                                                                    v_out_gpu1, vector_out1.size());
         cudaDeviceSynchronize();
     }
- 
+
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&time1, start, stop);
     cudaMemcpy(vector_out1.data(), v_out_gpu1, vector_sizeof(vector_out0), cudaMemcpyDeviceToHost);
-    std::cout << "Computed" <<std::endl;
+    std::cout << "Computed" << std::endl;
     auto merged = mergeSmall_k_cpu(vector_1, vector_2);
 
-    std::cout << "Equality CPU v1: " << (merged==vector_out1 ? "True ": "False ") << "T " <<time1 <<std::endl; 
-    std::cout << "Equality CPU v2: " << (merged==vector_out0 ? "True ": "False ") << "T " <<time0 <<std::endl; 
+    std::cout << "Equality CPU v1: " << (merged == vector_out1 ? "True " : "False ") << "T " << time1 << std::endl;
+    std::cout << "Equality CPU v2: " << (merged == vector_out0 ? "True " : "False ") << "T " << time0 << std::endl;
 
     cudaFree(v_1_gpu);
     cudaFree(v_2_gpu);
     cudaFree(v_out_gpu0);
     cudaFree(v_out_gpu1);
-
-
 }
