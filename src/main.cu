@@ -63,7 +63,7 @@ int main(int argc, char **argv)
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     cudaEventRecord(start, 0);
-    // for(int i =0; i<100; i++)
+    for(int i =0; i<100; i++)
     {
         mergeSmall_k2<<<(vector_out0.size() + 64) / 64, 64>>>(v_1_gpu, vector_1.size(),
                                                               v_2_gpu, vector_2.size(),
@@ -78,7 +78,7 @@ int main(int argc, char **argv)
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     cudaEventRecord(start, 0);
-    // for(int i =0; i<100; i++)
+    for(int i =0; i<100; i++)
     {
 
         mergeSmall_k1<<<(vector_out0.size() + 1024) / 1024, 1024>>>(v_1_gpu, vector_1.size(),
