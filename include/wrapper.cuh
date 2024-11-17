@@ -1,16 +1,21 @@
 #pragma once
 #include <path_merge.cuh>
+#include <thrust/device_vector.h>
+#include <thrust/merge.h>
+#include <thrust/execution_policy.h>
 
-__global__ void empty_kernel()
+__global__ void empty_k()
 {
     return;
 }
 
 template<typename T>
-const std::vector<T> call_merge_kernel(std::vector<T> A,std::vector<T> B)
+std::vector<T> call_merge_kernel(std::vector<T> A,std::vector<T> B)
 {
 
     static_assert(std::is_arithmetic<T>::value, "T must be an arithmetic type");
+
+    std::cout << "\n----------- call_merge_kernel wrapper -----------" << std::endl;
 
     std::vector<T> M(A.size() + B.size());
 
@@ -40,96 +45,69 @@ const std::vector<T> call_merge_kernel(std::vector<T> A,std::vector<T> B)
     }
 
     //call empty kernel to initialize the GPU
-    empty_kernel<<<1,1>>>();
+    // empty_k<<<1,1>>>();
 
     T * A_dev, * B_dev, * M_dev;
+    int2 * Q_global;
 
     std::cout << "A.size() = " << A.size() << std::endl;
     std::cout << "B.size() = " << B.size() << std::endl;
 
-    //time
-
-    cudaEvent_t start, stop;
-    cudaEvent_t malloc_start, malloc_stop;
-    cudaEvent_t memcpy_HtD_start, memcpy_HtD_stop;
-    cudaEvent_t kernel_start, kernel_stop;
-    cudaEvent_t memcpy_DtH_start, memcpy_DtH_stop;
-
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
-    cudaEventCreate(&malloc_start);
-    cudaEventCreate(&malloc_stop);
-    cudaEventCreate(&memcpy_HtD_start);
-    cudaEventCreate(&memcpy_HtD_stop);
-    cudaEventCreate(&kernel_start);
-    cudaEventCreate(&kernel_stop);
-    cudaEventCreate(&memcpy_DtH_start);
-    cudaEventCreate(&memcpy_DtH_stop);
-
-    // Time CUDA malloc operations
-    cudaEventRecord(malloc_start);
-    cudaMalloc(&A_dev, A.size() * sizeof(T));
-    cudaMalloc(&B_dev, B.size() * sizeof(T));
-    cudaMalloc(&M_dev, (A.size() + B.size()) * sizeof(T));
-    cudaEventRecord(malloc_stop), cudaEventSynchronize(malloc_stop);
-
-    // Time CUDA memcpy Host to Device
-    cudaEventRecord(memcpy_HtD_start);
-    cudaMemcpy(A_dev, A.data(), A.size() * sizeof(T), cudaMemcpyHostToDevice);
-    cudaMemcpy(B_dev, B.data(), B.size() * sizeof(T), cudaMemcpyHostToDevice);
-    cudaEventRecord(memcpy_HtD_stop), cudaEventSynchronize(memcpy_HtD_stop);
-  
-    if(DEBUG)
-    {
-      std::cout << "A_dev = [";
-      for(int i = 0; i < A.size(); i++)
-      {
-        std::cout << A[i] << ", ";
-      }
-      std::cout << "]" << std::endl;
-
-      std::cout << "B_dev = [";
-      for(int i = 0; i < B.size(); i++)
-      {
-        std::cout << B[i] << ", ";
-      }
-      std::cout << "]" << std::endl;
-    }
-
     dim3 block(THREADS_PER_BLOCK), grid(num_blocks);
-    //size_t shared_mem_size = (2 * THREADS_PER_BLOCK + 2) * sizeof(T) + sizeof(int2);
 
     std::cout << "Launching kernel with " << num_blocks << " blocks and " << THREADS_PER_BLOCK << " threads per block" << std::endl;
 
-    cudaEventRecord(kernel_start);
-    merge_k_gpu_triangles<<<grid, block>>>(A_dev, A.size(),
-                                                 B_dev, B.size(),
-                                                 M_dev);
+    cudaEvent_t start, before_memcpyHtD, before_kernel, before_memcpyDtH, stop;
 
-    cudaEventRecord(kernel_stop), cudaEventSynchronize(kernel_stop);
+    cudaEventCreate(&start);
+    cudaEventCreate(&before_memcpyHtD);
+    cudaEventCreate(&before_kernel);
+    cudaEventCreate(&before_memcpyDtH);
+    cudaEventCreate(&stop);
 
-    cudaEventRecord(memcpy_DtH_start);
+    // Time CUDA malloc operations
+    cudaEventRecord(start);
+    cudaMalloc(&A_dev, A.size() * sizeof(T));
+    cudaMalloc(&B_dev, B.size() * sizeof(T));
+    cudaMalloc(&M_dev, (A.size() + B.size()) * sizeof(T));
+    cudaMalloc(&Q_global, grid.x * sizeof(int2));
+
+    cudaEventRecord(before_memcpyHtD), cudaEventSynchronize(before_memcpyHtD);
+    cudaMemcpy(A_dev, A.data(), A.size() * sizeof(T), cudaMemcpyHostToDevice);
+    cudaMemcpy(B_dev, B.data(), B.size() * sizeof(T), cudaMemcpyHostToDevice);
+
+    cudaEventRecord(before_kernel), cudaEventSynchronize(before_kernel);
+    // merge_k_gpu_triangles<<<grid, block>>>(A_dev, A.size(),
+    //                                        B_dev, B.size(),
+    //                                        M_dev);
+    partition_k_gpu<<<grid, 1>>>(A_dev, A.size(),
+                                B_dev, B.size(),
+                                Q_global);
+    
+    merge_k_gpu_squares<<<grid, block>>>(A_dev, A.size(),
+                                         B_dev, B.size(),
+                                         M_dev, Q_global);
+
+    cudaEventRecord(before_memcpyDtH), cudaEventSynchronize(before_memcpyDtH);
     cudaMemcpy(M.data(), M_dev, M.size() * sizeof(T), cudaMemcpyDeviceToHost);
-    cudaEventRecord(memcpy_DtH_stop), cudaEventSynchronize(memcpy_DtH_stop);
 
     // Record overall stop time
     cudaEventRecord(stop), cudaEventSynchronize(stop);
 
     float milliseconds = 0;
-    cudaEventElapsedTime(&milliseconds, malloc_start, malloc_stop);
+
+    cudaEventElapsedTime(&milliseconds, start, before_memcpyHtD);
     std::cout << "CUDA malloc time: " << milliseconds << "ms" << std::endl;
-
-    cudaEventElapsedTime(&milliseconds, memcpy_HtD_start, memcpy_HtD_stop);
+    cudaEventElapsedTime(&milliseconds, before_memcpyHtD, before_kernel);
     std::cout << "CUDA memcpy HtD time: " << milliseconds << "ms" << std::endl;
-
-    cudaEventElapsedTime(&milliseconds, kernel_start, kernel_stop);
-    std::cout << "CUDA kernel time: " << milliseconds << "ms" << std::endl;
-
-    cudaEventElapsedTime(&milliseconds, memcpy_DtH_start, memcpy_DtH_stop);
+    cudaEventElapsedTime(&milliseconds, before_kernel, before_memcpyDtH);
+    std::cout << "Kernel time: " << milliseconds << "ms" << std::endl;
+    cudaEventElapsedTime(&milliseconds, before_memcpyDtH, stop);
     std::cout << "CUDA memcpy DtH time: " << milliseconds << "ms" << std::endl;
-
     cudaEventElapsedTime(&milliseconds, start, stop);
-    std::cout << "Total CUDA operation time: " << milliseconds << "ms" << std::endl;
+    std::cout << "CUDA Total merge time: " << milliseconds << "ms" << std::endl;
+
+    std::cout << "----------- end call_merge_kernel wrapper -----------" << std::endl;
 
     cudaFree(A_dev);
     cudaFree(B_dev);
@@ -137,6 +115,53 @@ const std::vector<T> call_merge_kernel(std::vector<T> A,std::vector<T> B)
 
     return M;
   
+}
+
+template <typename T>
+std::vector<T> merge_arrays_thrust(const std::vector<T>& A, const std::vector<T>& B)
+{
+
+    std::cout << "\n----------- merge_array_thrust wrapper -----------" << std::endl;
+
+    cudaEvent_t start, before_kernel, before_memcpyDtH, stop;
+    cudaEventCreate(&start), cudaEventCreate(&before_kernel), cudaEventCreate(&before_memcpyDtH), cudaEventCreate(&stop);
+
+    cudaEventRecord(start);
+    // Create device vectors from the input std::vectors
+    thrust::device_vector<T> d_A = A;
+    thrust::device_vector<T> d_B = B;
+
+    thrust::device_vector<T> result(A.size() + B.size());
+
+    thrust::copy(A.begin(), A.end(), d_A.begin());
+    thrust::copy(B.begin(), B.end(), d_B.begin());
+
+
+    cudaEventRecord(before_kernel), cudaEventSynchronize(before_kernel);
+    thrust::merge(thrust::device,
+                  d_A.begin(), d_A.end(),
+                  d_B.begin(), d_B.end(),
+                  result.begin());
+
+    cudaEventRecord(before_memcpyDtH), cudaEventSynchronize(before_memcpyDtH);
+
+    auto result_host = std::vector<T>(result.size());
+    thrust::copy(result.begin(), result.end(), result_host.begin());
+
+    cudaEventRecord(stop), cudaEventSynchronize(stop);
+
+    float milliseconds = 0;
+
+    cudaEventElapsedTime(&milliseconds, start, before_kernel);
+    std::cout << "CUDA malloc + memcpy HtD time: " << milliseconds << " ms" << std::endl;
+    cudaEventElapsedTime(&milliseconds, before_kernel, before_memcpyDtH);
+    std::cout << "Kernel time: " << milliseconds << " ms" << std::endl;
+    cudaEventElapsedTime(&milliseconds, before_memcpyDtH, stop);
+    std::cout << "CUDA memcpy DtH time: " << milliseconds << " ms" << std::endl;
+
+    std::cout << "----------- end merge_array_thrust wrapper -----------\n" << std::endl;
+
+    return result_host;
 }
 
 
