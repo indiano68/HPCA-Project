@@ -102,7 +102,7 @@ const std::vector<T> call_merge_kernel(std::vector<T> A,std::vector<T> B)
     std::cout << "Launching kernel with " << num_blocks << " blocks and " << THREADS_PER_BLOCK << " threads per block" << std::endl;
 
     cudaEventRecord(kernel_start);
-    merge_k_gpu_triangles<<<grid, block>>>(A_dev, A.size(),
+    merge_k_triangles<<<grid, block>>>(A_dev, A.size(),
                                                  B_dev, B.size(),
                                                  M_dev);
 
