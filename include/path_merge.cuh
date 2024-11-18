@@ -7,7 +7,7 @@ int constexpr THREADS_PER_BLOCK = 1024;
 
 
 template <class T>
-_global_ void mergeSmall_k_gpu_seq(const T *A_ptr,
+__global__ void mergeSmall_k_gpu_seq(const T *A_ptr,
                                      const size_t A_size,
                                      const T *B_ptr,
                                      const size_t B_size,
@@ -40,7 +40,7 @@ _global_ void mergeSmall_k_gpu_seq(const T *A_ptr,
 
 
 template <class T>
-_global_ void mergeSmall_k(const T *v_1_ptr,
+__global__ void mergeSmall_k(const T *v_1_ptr,
                              const size_t v_1_size,
                              const T *v_2_ptr,
                              const size_t v_2_size,
@@ -98,7 +98,7 @@ _global_ void mergeSmall_k(const T *v_1_ptr,
 }
 
 template <class T>
-_global_ void mergeSmall_k1(const T *v_1_ptr,
+__global__ void mergeSmall_k1(const T *v_1_ptr,
                               const size_t v_1_size,
                               const T *v_2_ptr,
                               const size_t v_2_size,
@@ -157,7 +157,7 @@ _global_ void mergeSmall_k1(const T *v_1_ptr,
 
 
 template <class T>
-_global_ void mergeSmall_k2(const T *v_1_ptr,
+__global__ void mergeSmall_k2(const T *v_1_ptr,
                               const size_t v_1_size,
                               const T *v_2_ptr,
                               const size_t v_2_size,
@@ -169,9 +169,9 @@ _global_ void mergeSmall_k2(const T *v_1_ptr,
     coordinate P = {0, 0};
     coordinate Q = {0, 0};
 
-    _shared_ int2 Q_shift;
-    _shared_ T A[THREADS_PER_BLOCK + 1];
-    _shared_ T B[THREADS_PER_BLOCK + 1];
+    __shared__ int2 Q_shift;
+    __shared__ T A[THREADS_PER_BLOCK + 1];
+    __shared__ T B[THREADS_PER_BLOCK + 1];
     if (thread_idx > v_1_size)
     {
         K.x = thread_idx - v_1_size;
@@ -271,7 +271,7 @@ _global_ void mergeSmall_k2(const T *v_1_ptr,
 }
 
 template <class T>
-_global_ void merge_k_gpu_triangles(const T *A_ptr,
+__global__ void merge_k_gpu_triangles(const T *A_ptr,
                                             const size_t A_size,
                                             const T *B_ptr,
                                             const size_t B_size,
@@ -280,8 +280,8 @@ _global_ void merge_k_gpu_triangles(const T *A_ptr,
 
   //static_assert(std::is_arithmetic<T>::value, "Template type must be numeric");
 
-  _shared_ T A_shared[THREADS_PER_BLOCK + 1], B_shared[THREADS_PER_BLOCK + 1];
-  _shared_ int2 Q_base;
+  __shared__ T A_shared[THREADS_PER_BLOCK + 1], B_shared[THREADS_PER_BLOCK + 1];
+  __shared__ int2 Q_base;
 
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -350,7 +350,7 @@ _global_ void merge_k_gpu_triangles(const T *A_ptr,
 }
 
 template <class T>
-_global_ void partition_k_gpu(const T *A_ptr,
+__global__ void partition_k_gpu(const T *A_ptr,
                               const size_t A_size,
                               const T *B_ptr,
                               const size_t B_size,
@@ -373,7 +373,7 @@ _global_ void partition_k_gpu(const T *A_ptr,
 }
 
 template <class T>
-_global_ void merge_k_gpu_squares(const T *A_ptr,
+__global__ void merge_k_gpu_squares(const T *A_ptr,
                                             const size_t A_size,
                                             const T *B_ptr,
                                             const size_t B_size,
@@ -383,7 +383,7 @@ _global_ void merge_k_gpu_squares(const T *A_ptr,
 
   //assert(blockDim.x >= 4);
 
-  _shared_ T shared_mem[THREADS_PER_BLOCK + 4];
+  __shared__ T shared_mem[THREADS_PER_BLOCK + 4];
 
   int2 Q_next = Q_global[blockIdx.x];
   int2 Q_prev = (blockIdx.x > 0) ? Q_global[blockIdx.x - 1] : make_int2(0, 0);
@@ -471,7 +471,7 @@ _global_ void merge_k_gpu_squares(const T *A_ptr,
 
 
 template <class T>
-_global_ void merge_k_gpu_squares_v2(const T *A_ptr,
+__global__ void merge_k_gpu_squares_v2(const T *A_ptr,
                                             const size_t A_size,
                                             const T *B_ptr,
                                             const size_t B_size,
@@ -480,8 +480,8 @@ _global_ void merge_k_gpu_squares_v2(const T *A_ptr,
 
   //assert(blockDim.x >= 4);
 
-  _shared_ T shared_mem[THREADS_PER_BLOCK + 4];
-  _shared_ int2 Q_prev = {0, 0}, Q_next = {0, 0};
+  __shared__ T shared_mem[THREADS_PER_BLOCK + 4];
+  __shared__ int2 Q_prev, Q_next;
 
   if (threadIdx.x == 0)
   {

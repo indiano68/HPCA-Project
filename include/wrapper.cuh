@@ -4,7 +4,7 @@
 #include <thrust/merge.h>
 #include <thrust/execution_policy.h>
 
-_global_ void empty_k()
+__global__ void empty_k()
 {
     return;
 }
@@ -58,12 +58,12 @@ std::vector<T> call_merge_kernel(std::vector<T> A,std::vector<T> B)
     std::cout << "Launching kernel with " << num_blocks << " blocks and " << THREADS_PER_BLOCK << " threads per block" << std::endl;
 
     cudaEvent_t start, before_memcpyHtD, before_kernel, before_memcpyDtH, stop;
-    //cudaEvent_t before_kernel2;
+    cudaEvent_t before_kernel2;
 
     cudaEventCreate(&start);
     cudaEventCreate(&before_memcpyHtD);
     cudaEventCreate(&before_kernel);
-    //cudaEventCreate(&before_kernel2);
+    cudaEventCreate(&before_kernel2);
     cudaEventCreate(&before_memcpyDtH);
     cudaEventCreate(&stop);
 
@@ -83,19 +83,19 @@ std::vector<T> call_merge_kernel(std::vector<T> A,std::vector<T> B)
     //                                        B_dev, B.size(),
     //                                        M_dev);
 
-    merge_k_gpu_squares_v2<<<grid, block>>>(A_dev, A.size(),
-                                           B_dev, B.size(),
-                                           M_dev);
+    // merge_k_gpu_squares_v2<<<grid, block>>>(A_dev, A.size(),
+    //                                        B_dev, B.size(),
+    //                                        M_dev);
 
-    // partition_k_gpu<<<grid, 1>>>(A_dev, A.size(),
-    //                             B_dev, B.size(),
-    //                             Q_global);
+    partition_k_gpu<<<grid, 1>>>(A_dev, A.size(),
+                                B_dev, B.size(),
+                                Q_global);
     
-    // cudaEventRecord(before_kernel2), cudaEventSynchronize(before_kernel2);
+    cudaEventRecord(before_kernel2), cudaEventSynchronize(before_kernel2);
 
-    // merge_k_gpu_squares<<<grid, block>>>(A_dev, A.size(),
-    //                                      B_dev, B.size(),
-    //                                      M_dev, Q_global);
+    merge_k_gpu_squares<<<grid, block>>>(A_dev, A.size(),
+                                         B_dev, B.size(),
+                                         M_dev, Q_global);
 
     cudaEventRecord(before_memcpyDtH), cudaEventSynchronize(before_memcpyDtH);
     cudaMemcpy(M.data(), M_dev, M.size() * sizeof(T), cudaMemcpyDeviceToHost);
@@ -109,12 +109,12 @@ std::vector<T> call_merge_kernel(std::vector<T> A,std::vector<T> B)
     std::cout << "CUDA malloc time: " << milliseconds << "ms" << std::endl;
     cudaEventElapsedTime(&milliseconds, before_memcpyHtD, before_kernel);
     std::cout << "CUDA memcpy HtD time: " << milliseconds << "ms" << std::endl;
-    // cudaEventElapsedTime(&milliseconds, before_kernel, before_kernel2);
-    // std::cout << "Partition time: " << milliseconds << "ms" << std::endl;
-    // cudaEventElapsedTime(&milliseconds, before_kernel2, before_memcpyDtH);
-    // std::cout << "Merge time: " << milliseconds << "ms" << std::endl;
+    cudaEventElapsedTime(&milliseconds, before_kernel, before_kernel2);
+    std::cout << "Partition time: " << milliseconds << "ms" << std::endl;
+    cudaEventElapsedTime(&milliseconds, before_kernel2, before_memcpyDtH);
+    std::cout << "Merge time: " << milliseconds << "ms" << std::endl;
     cudaEventElapsedTime(&milliseconds, before_kernel, before_memcpyDtH);
-    std::cout << "CUDA kernel time: " << milliseconds << "ms" << std::endl;
+    std::cout << "Total kernel time: " << milliseconds << "ms" << std::endl;
     cudaEventElapsedTime(&milliseconds, before_memcpyDtH, stop);
     std::cout << "CUDA memcpy DtH time: " << milliseconds << "ms" << std::endl;
     cudaEventElapsedTime(&milliseconds, start, stop);
