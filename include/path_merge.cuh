@@ -1,9 +1,9 @@
 #pragma once
 #include <vector>
+#include <diag_search.cuh>
 
 typedef int2 coordinate;
-int constexpr THREADS_PER_BLOCK = 4;
-int constexpr DEBUG = false;
+int constexpr THREADS_PER_BLOCK = 1024;
 
 
 template <class T>
@@ -271,82 +271,6 @@ __global__ void mergeSmall_k2(const T *v_1_ptr,
 }
 
 template <class T>
-__device__ inline int2 explorative_search(const T *A_ptr, const size_t A_size, const T *B_ptr, const size_t B_size, int2 K, int2 P)
-{
-
-while (true)
-  {
-    uint32_t offset = abs(K.y - P.y) / 2;
-    int2 Q = {K.x + (int)offset, K.y - (int)offset};
-
-    // i primi due if detectano se il punto è plausibile
-    if (Q.y == A_size || Q.x == 0 || A_ptr[Q.y] >= B_ptr[Q.x - 1])
-    {
-      if (Q.x == B_size || Q.y == 0 || A_ptr[Q.y - 1] <= B_ptr[Q.x])
-      {
-        return Q;
-      }
-      else
-      {
-        K = {Q.x + 1, Q.y - 1};
-      }
-    }
-    else
-    {
-      P = {Q.x - 1, Q.y + 1};
-    }
-  }
-
-}
-
-template <class T>
-__device__ void block_bin_search(const T *A_local, const T *B_local, int2 K, int2 P, T *M_global, bool blk_left_border, bool blk_right_border, bool blk_top_border, bool blk_bottom_border, int base, int height)
-{
-
-  int tid = threadIdx.x + blockIdx.x * blockDim.x;
-
-  while (true)
-  {
-    uint32_t offset = abs(K.y - P.y) / 2;
-    int2 Q = {K.x + (int)offset, K.y - (int)offset};
-
-    if(DEBUG) printf("Block %d thread %d testing Q(%d,%d)\n", blockIdx.x, threadIdx.x, Q.x, Q.y);
-
-    // bool Q_bottom_border = (blk_bottom_border && Q.y == blockDim.x - 1);
-    bool Q_bottom_border = (blk_bottom_border && Q.y == height);
-    bool Q_left_border = (blk_left_border && Q.x == 0);
-    // bool Q_right_border = (blk_right_border && Q.x == blockDim.x - 1);
-    bool Q_right_border = (blk_right_border && Q.x == base);
-    bool Q_top_border = (blk_top_border && Q.y == 0);
-
-    if (Q_bottom_border || Q_left_border || A_local[Q.y] >= B_local[Q.x - 1])
-    {
-      if (Q_right_border || Q_top_border || A_local[Q.y - 1] <= B_local[Q.x])
-      {
-        if (!Q_bottom_border && (Q_right_border || A_local[Q.y] <= B_local[Q.x]))
-        {
-          M_global[tid] = A_local[Q.y];
-        }
-        else
-        {
-          M_global[tid] = B_local[Q.x];
-        }
-        if(DEBUG) printf("Block %d thread %d found Q(%d,%d)\n", blockIdx.x, threadIdx.x, Q.x, Q.y);
-        break;
-      }
-      else
-      {
-        K = {Q.x + 1, Q.y - 1};
-      }
-    }
-    else
-    {
-      P = {Q.x - 1, Q.y + 1};
-    }
-  }
-}
-
-template <class T>
 __global__ void merge_k_gpu_triangles(const T *A_ptr,
                                             const size_t A_size,
                                             const T *B_ptr,
@@ -445,15 +369,6 @@ __global__ void partition_k_gpu(const T *A_ptr,
   P_explorative.y = (tid > B_size) ? tid - B_size : 0;
 
   Q_global[blockIdx.x] = explorative_search(A_ptr, A_size, B_ptr, B_size, K_explorative, P_explorative);
-
-  if(blockIdx.x == 0)
-  {
-    for(int i = 0; i < gridDim.x; i++)
-    {
-      printf("Block %d: Q_base(%d,%d)\n", i, Q_global[i].x, Q_global[i].y);
-    }
-  }
-
   return;
 }
 
@@ -470,29 +385,30 @@ __global__ void merge_k_gpu_squares(const T *A_ptr,
 
   __shared__ T shared_mem[THREADS_PER_BLOCK + 4];
 
-  int tid = threadIdx.x + blockIdx.x * blockDim.x;
-
   int2 Q_next = Q_global[blockIdx.x];
   int2 Q_prev = (blockIdx.x > 0) ? Q_global[blockIdx.x - 1] : make_int2(0, 0);
-
-  int base = Q_next.x - Q_prev.x;
-  int height = Q_next.y - Q_prev.y;
-
-  if(base == 0)
-  {
-    M_ptr[tid] = B_ptr[Q_prev.x + threadIdx.x];
-    return;
-  }
-  else if(height == 0)
-  {
-    M_ptr[tid] = B_ptr[Q_prev.x + threadIdx.x];
-    return;
-  }
 
   int x_start = Q_prev.x;
   int y_start = Q_prev.y;
   int x_end = Q_next.x;
   int y_end = Q_next.y;
+
+  int base = Q_next.x - Q_prev.x;
+  int height = Q_next.y - Q_prev.y;
+
+  if(blockIdx.x != 0)
+  {
+    if(height == 0)
+    {
+      base--;
+      x_start++;
+    }
+    else if(base == 0)
+    {
+      height--;
+      y_start++;
+    }
+  }
 
   T *A_local = shared_mem;
   T *B_local = shared_mem + height + 2;
@@ -501,9 +417,9 @@ __global__ void merge_k_gpu_squares(const T *A_ptr,
   {
     A_local[threadIdx.x + 1] = A_ptr[y_start + threadIdx.x];
   }
-  else
+  else if(threadIdx.x < height + base)
   {
-    B_local[threadIdx.x - height + 1] = B_ptr[x_start + threadIdx.x];
+    B_local[threadIdx.x - height + 1] = B_ptr[x_start + threadIdx.x - height];
   }
 
   if(threadIdx.x == 0)
@@ -522,7 +438,16 @@ __global__ void merge_k_gpu_squares(const T *A_ptr,
   {
     B_local[base + 1] = (x_end < B_size) ? B_ptr[x_end] : 0;
   }
+
+  // if(threadIdx.x < 2)
+  // {
+  //   int idx = threadIdx.x * (height + 1);
+  //   A_local[idx] = (y_start > 0 && threadIdx.x == 0) ? A_ptr[y_start - 1] : (y_end < A_size && threadIdx.x == 1) ? A_ptr[y_end] : 0;
+  // }
+
   __syncthreads();
+
+  if(DEBUG) print_shared(A_local, B_local, base, height);
 
   int2 K, P;
 
@@ -538,8 +463,6 @@ __global__ void merge_k_gpu_squares(const T *A_ptr,
 
   P.x = height >= reverse_tid ? base : base + height - reverse_tid;
   P.y = height >= reverse_tid ? height - reverse_tid : 0;
-
-  printf("Block %d thread %d: K(%d,%d) P(%d,%d)\n", blockIdx.x, threadIdx.x, K.x, K.y, P.x, P.y);
 
   block_bin_search(A_local + 1, B_local + 1, K, P, M_ptr, blk_left_border, blk_right_border, blk_top_border, blk_bottom_border, base, height);
 

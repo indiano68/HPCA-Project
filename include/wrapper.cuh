@@ -58,10 +58,11 @@ std::vector<T> call_merge_kernel(std::vector<T> A,std::vector<T> B)
     std::cout << "Launching kernel with " << num_blocks << " blocks and " << THREADS_PER_BLOCK << " threads per block" << std::endl;
 
     cudaEvent_t start, before_memcpyHtD, before_kernel, before_memcpyDtH, stop;
+    cudaEvent_t before_kernel2;
 
     cudaEventCreate(&start);
     cudaEventCreate(&before_memcpyHtD);
-    cudaEventCreate(&before_kernel);
+    cudaEventCreate(&before_kernel), cudaEventCreate(&before_kernel2);
     cudaEventCreate(&before_memcpyDtH);
     cudaEventCreate(&stop);
 
@@ -80,10 +81,13 @@ std::vector<T> call_merge_kernel(std::vector<T> A,std::vector<T> B)
     // merge_k_gpu_triangles<<<grid, block>>>(A_dev, A.size(),
     //                                        B_dev, B.size(),
     //                                        M_dev);
+
     partition_k_gpu<<<grid, 1>>>(A_dev, A.size(),
                                 B_dev, B.size(),
                                 Q_global);
     
+    cudaEventRecord(before_kernel2), cudaEventSynchronize(before_kernel2);
+
     merge_k_gpu_squares<<<grid, block>>>(A_dev, A.size(),
                                          B_dev, B.size(),
                                          M_dev, Q_global);
@@ -100,8 +104,10 @@ std::vector<T> call_merge_kernel(std::vector<T> A,std::vector<T> B)
     std::cout << "CUDA malloc time: " << milliseconds << "ms" << std::endl;
     cudaEventElapsedTime(&milliseconds, before_memcpyHtD, before_kernel);
     std::cout << "CUDA memcpy HtD time: " << milliseconds << "ms" << std::endl;
-    cudaEventElapsedTime(&milliseconds, before_kernel, before_memcpyDtH);
-    std::cout << "Kernel time: " << milliseconds << "ms" << std::endl;
+    cudaEventElapsedTime(&milliseconds, before_kernel, before_kernel2);
+    std::cout << "Partition time: " << milliseconds << "ms" << std::endl;
+    cudaEventElapsedTime(&milliseconds, before_kernel2, before_memcpyDtH);
+    std::cout << "Merge time: " << milliseconds << "ms" << std::endl;
     cudaEventElapsedTime(&milliseconds, before_memcpyDtH, stop);
     std::cout << "CUDA memcpy DtH time: " << milliseconds << "ms" << std::endl;
     cudaEventElapsedTime(&milliseconds, start, stop);
@@ -158,6 +164,8 @@ std::vector<T> merge_arrays_thrust(const std::vector<T>& A, const std::vector<T>
     std::cout << "Kernel time: " << milliseconds << " ms" << std::endl;
     cudaEventElapsedTime(&milliseconds, before_memcpyDtH, stop);
     std::cout << "CUDA memcpy DtH time: " << milliseconds << " ms" << std::endl;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    std::cout << "CUDA Total merge time: " << milliseconds << " ms" << std::endl;
 
     std::cout << "----------- end merge_array_thrust wrapper -----------\n" << std::endl;
 
