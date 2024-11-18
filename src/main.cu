@@ -19,12 +19,12 @@ int main(int argc, char **argv)
     }
     printGPUInfo();
 
-    std::vector<v_type> vector_1 = build_random_vector<v_type>(std::stoi(argv[1]), -1000, 1000);
-    std::vector<v_type> vector_2 = build_random_vector<v_type>(std::stoi(argv[2]), -1000, 1000);
+    // std::vector<v_type> vector_1 = build_random_vector<v_type>(std::stoi(argv[1]), -1000, 1000);
+    // std::vector<v_type> vector_2 = build_random_vector<v_type>(std::stoi(argv[2]), -1000, 1000);
     // std::vector<v_type> vector_1 = {30,50,60,80,110};
     // std::vector<v_type> vector_2 = {10,20,40,70,90,100,120};
-    // std::vector<v_type> vector_1 = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
-    // std::vector<v_type> vector_2 = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+    std::vector<v_type> vector_1 = {1,1,1,1,1,2,2,2,2,2,3,3,3,3,3,4,4,4,4,4};
+    std::vector<v_type> vector_2 = {1,1,1,2,2,2,2,2,2,3,3,3,3,3,4,4,4,4,4,4};
     std::vector<v_type> vector_out0(vector_1.size() + vector_2.size());
     std::vector<v_type> vector_out1(vector_1.size() + vector_2.size());
 
@@ -105,6 +105,9 @@ int main(int argc, char **argv)
     {
         std::cout<<"GPU and CPU results are not equal"<<std::endl;
     }
+
+    print_vector(gpu_merge, "GPU");
+    print_vector(merged, "CPU");
 
     cudaFree(v_1_gpu);
     cudaFree(v_2_gpu);

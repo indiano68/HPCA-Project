@@ -6,13 +6,21 @@ __device__ void print_shared(T *A_shared, T *B_shared, int base, int height)
 {
   if(threadIdx.x == 0)
   {
-    for(int i = 0; i < height + 2; i++)
+    // for(int i = 0; i < height + 2; i++)
+    // {
+    //   printf("block %d A[%d] = %d\n", blockIdx.x, i, A_shared[i]);
+    // }
+    // for(int i = 0; i < base + 2; i++)
+    // {
+    //   printf("block %d B[%d] = %d\n", blockIdx.x, i, B_shared[i]);
+    // }
+    for(int i = 0; i < height; i++)
     {
-      printf("block %d A[%d] = %d\n", blockIdx.x, i, A_shared[i]);
+      printf("block %d A_local[%d] = %d\n", blockIdx.x, i, A_shared[i + 1]);
     }
-    for(int i = 0; i < base + 2; i++)
+    for(int i = 0; i < base; i++)
     {
-      printf("block %d B[%d] = %d\n", blockIdx.x, i, B_shared[i]);
+      printf("block %d B_local[%d] = %d\n", blockIdx.x, i, B_shared[i + 1]);
     }
   }
 }
@@ -23,7 +31,8 @@ __device__ inline int2 explorative_search(const T *A_ptr, const size_t A_size, c
 
 while (true)
   {
-    uint32_t offset = abs(K.y - P.y) / 2;
+    // uint32_t offset = abs(K.y - P.y) / 2;
+    uint32_t offset = (K.y - P.y) / 2;
     int2 Q = {K.x + (int)offset, K.y - (int)offset};
 
     // i primi due if detectano se il punto è plausibile
@@ -54,13 +63,19 @@ __device__ void block_bin_search(const T *A_local, const T *B_local, int2 K, int
 
   while (true)
   {
-    uint32_t offset = abs(K.y - P.y) / 2;
+    // uint32_t offset = abs(K.y - P.y) / 2;
+    uint32_t offset = (K.y - P.y) / 2;
     int2 Q = {K.x + (int)offset, K.y - (int)offset};
 
-    bool Q_bottom_border = (blk_bottom_border && Q.y == height);
-    bool Q_left_border = (blk_left_border && Q.x == 0);
-    bool Q_right_border = (blk_right_border && Q.x == base);
+    // bool Q_right_border = (blk_right_border && Q.x == base);
+    // bool Q_bottom_border = (blk_bottom_border && Q.y == height);
     bool Q_top_border = (blk_top_border && Q.y == 0);
+    bool Q_left_border = (blk_left_border && Q.x == 0);
+
+    bool Q_bottom_border = (Q.y == height);
+    bool Q_right_border = (Q.x == base);
+    // bool Q_left_border = (Q.x == 0);
+    // bool Q_top_border = (Q.y == 0);
 
     if (Q_bottom_border || Q_left_border || A_local[Q.y] > B_local[Q.x - 1])
     {
@@ -74,7 +89,7 @@ __device__ void block_bin_search(const T *A_local, const T *B_local, int2 K, int
         {
           M_global[tid] = B_local[Q.x];
         }
-        if(DEBUG) printf("Block %d thread %d found Q(%d,%d)\n", blockIdx.x, threadIdx.x, Q.x, Q.y);
+        printf("Block %d thread %d found Q(%d,%d)\n", blockIdx.x, threadIdx.x, Q.x, Q.y);
         break;
       }
       else
