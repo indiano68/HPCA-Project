@@ -7,6 +7,7 @@
 #include <path_merge.cuh>
 #include <wrapper.cuh>
 #include <thrust_merge.cuh>
+#include <cuda_timing.h>
 
 using v_type = int;
 
@@ -32,7 +33,8 @@ int main(int argc, char **argv)
     */
     v_type *v_A_gpu, 
            *v_B_gpu, 
-           *v_buffer_gpu, 
+           *v_buffer_gpu_triangles,
+           *v_buffer_gpu_squares,
            *v_out_gpu_0, 
            *v_out_gpu_1,
            *v_out_gpu_2;
@@ -43,6 +45,15 @@ int main(int argc, char **argv)
     */
     std::vector<v_type> vector_A = build_random_vector<v_type>(std::stoi(argv[1]), -1000, 1000);
     std::vector<v_type> vector_B = build_random_vector<v_type>(std::stoi(argv[2]), -1000, 1000);
+    print_vector(vector_A, "Vector A");
+    print_vector(vector_B, "Vector B");
+    //std::vector<v_type> vector_B = {2,4,5,6,7,11,12};
+    //std::vector<v_type> vector_A = {1,3,8,9,10};
+    // std::vector<v_type> vector_B = {5,7,8,9,10,11,12};
+    // std::vector<v_type> vector_A = {1,2,3,4,6};
+    // std::vector<v_type> vector_A = {1};
+    // std::vector<v_type> vector_B = {2};
+    
 
     /*
         Building buffers for that allow the varius benchmakred kernels 
@@ -57,11 +68,13 @@ int main(int argc, char **argv)
 
 
     float time_0, time_1, time_2, time_3;
-    cudaEvent_t start, stop;
+    TIME_EVENT_DEFINE(timing_0);TIME_EVENT_CREATE(timing_0);
+    TIME_EVENT_DEFINE(timing_1);TIME_EVENT_CREATE(timing_1);
+    TIME_EVENT_DEFINE(timing_2);TIME_EVENT_CREATE(timing_2);
 
     if (vector_A.size() > vector_B.size())
     {
-        std::cout << "Required Size A > Size B!" << std::endl;
+        std::cout << "Required Size A < Size B!" << std::endl;
         abort();
     }
 
@@ -95,9 +108,8 @@ int main(int argc, char **argv)
         Benchmarking of Erik's Kernel
     ########################################
     */
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
-    cudaEventRecord(start, 0);
+
+    TIME_START(timing_0);
     for (int i = 0; i < N_ITER; i++)
     {
         partitioner<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
@@ -108,16 +120,13 @@ int main(int argc, char **argv)
                                                           v_B_gpu, vector_B.size(),
                                                           v_out_gpu_0, vector_out_0.size(), v_Q_gpu);
     }
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&time_0, start, stop);
+    TIME_STOP_SAVE(timing_0,time_0);
+
     cudaMemcpy(vector_out_0.data(), v_out_gpu_0, vector_sizeof(vector_out_0), cudaMemcpyDeviceToHost);
     cudaMemcpy(vector_Q.data(), v_Q_gpu, vector_sizeof(vector_Q), cudaMemcpyDeviceToHost);
 
-
-    
-    /* Padding */
-    auto remainder = vector_out_1.size() % THREADS_PER_BLOCK;
+    // Padding for Triangles kernel
+    auto remainder = (vector_out_1.size()) % THREADS_PER_BLOCK;
     size_t padding = (remainder == 0) ? 0 : THREADS_PER_BLOCK - remainder;
     auto v_buffer = vector_B;
     if (remainder != 0)
@@ -125,65 +134,83 @@ int main(int argc, char **argv)
         auto biggest_element = std::max(vector_A.back(), vector_B.back());
         v_buffer.resize(v_buffer.size() + padding, biggest_element);
     }
-    cudaMalloc(&v_buffer_gpu, vector_sizeof(v_buffer));
-    cudaMemcpy(v_buffer_gpu, v_buffer.data(), vector_sizeof(v_buffer), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&v_buffer_gpu_triangles, vector_sizeof(v_buffer));
+    cudaMemcpy(v_buffer_gpu_triangles, v_buffer.data(), vector_sizeof(v_buffer), cudaMemcpyHostToDevice);
 
     /*
     ########################################
         Benchmarking of Triangles Kernel
     ########################################
     */
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
-    cudaEventRecord(start, 0);
+    TIME_START(timing_1);
     emptyk<<<1, 1>>>();
-    for (int i = 0; i < N_ITER; i++)
-    {
-        merge_k_triangles<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
-                                                                            v_buffer_gpu, v_buffer.size(),
-                                                                            v_out_gpu_1);
-    }
-
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&time_1, start, stop);
+    // for (int i = 0; i < N_ITER; i++)
+    // {
+    //     merge_k_triangles<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
+    //                                                                         v_buffer_gpu_triangles, v_buffer.size(),
+    //                                                                         v_out_gpu_1);
+    // }
+    TIME_STOP_SAVE(timing_1,time_1)
     cudaMemcpy(vector_out_1.data(), v_out_gpu_1, vector_sizeof(vector_out_1), cudaMemcpyDeviceToHost);
+    
+    
+    // Padding for Squares kernel
+    remainder = (vector_out_1.size()+1) % THREADS_PER_BLOCK;
+    padding = (remainder == 0) ? 0 : remainder;
+    v_buffer = vector_B;
+    if (remainder != 0)
+    {
+        auto biggest_element = std::max(vector_A.back(), vector_B.back());
+        v_buffer.resize(v_buffer.size() + padding, biggest_element);
+        //grid.x++;
+    }
+    dim3 grid((vector_A.size() + v_buffer.size() + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK);
+
+
+    cudaMalloc(&v_buffer_gpu_squares, vector_sizeof(v_buffer));
+    cudaMemcpy(v_buffer_gpu_squares, v_buffer.data(), vector_sizeof(v_buffer), cudaMemcpyHostToDevice);
+
+    print_vector(v_buffer, "Buffer padded");
+    printf("Grid size: %d\n", grid.x);
     /*
     ########################################
         Benchmarking of Squares Kernel
     ########################################
     */
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
-    cudaEventRecord(start, 0);
+    TIME_START(timing_2);
     emptyk<<<1, 1>>>();
     for (int i = 0; i < N_ITER; i++)
     {
-        partition_k_gpu<<<block_num,1>>>(v_A_gpu,vector_A.size(),
-                                                         v_buffer_gpu,v_buffer.size(),
+        partition_k_gpu<<<grid,1>>>(v_A_gpu,vector_A.size(),
+                                                         v_buffer_gpu_squares,v_buffer.size(),
                                                          v_Q_gpu);
-        merge_k_gpu_squares<<<block_num,THREADS_PER_BLOCK>>>(v_A_gpu,vector_A.size(),
-                                                             v_buffer_gpu,v_buffer.size(),
+        merge_k_gpu_squares<<<grid,THREADS_PER_BLOCK>>>(v_A_gpu,vector_A.size(),
+                                                             v_buffer_gpu_squares,v_buffer.size(),
                                                              v_out_gpu_2,v_Q_gpu);
     }
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&time_2, start, stop);
-    cudaMemcpy(vector_out_2.data(), v_out_gpu_2, vector_sizeof(vector_out_2), cudaMemcpyDeviceToHost);
+    TIME_STOP_SAVE(timing_2,time_2);
 
+    cudaMemcpy(vector_out_2.data(), v_out_gpu_2, vector_sizeof(vector_out_2), cudaMemcpyDeviceToHost);
 
     time_3 = bench_thrust_merge(vector_A, vector_B, vector_out_3, N_ITER);
     auto merged = mergeSmall_k_cpu(vector_A, vector_B);
+
     std::cout << "Equality Erik     mergeLarge    : " << (merged == vector_out_0 ? "True " : "False ") << "T " << time_0 / N_ITER << std::endl;
     std::cout << "Equality Triangle mergeLarge    : " << (merged == vector_out_1 ? "True " : "False ") << "T " << time_1 / N_ITER << std::endl;
-    std::cout << "Equality Squares  mergeLarge    : " << (merged == vector_out_1 ? "True " : "False ") << "T " << time_2 / N_ITER << std::endl;
+    std::cout << "Equality Squares  mergeLarge    : " << (merged == vector_out_2 ? "True " : "False ") << "T " << time_2 / N_ITER << std::endl;
     std::cout << "Equality thrust   merge         : " << (merged == vector_out_3 ? "True " : "False ") << "T " << time_3 << std::endl;
     cudaFree(v_A_gpu), 
     cudaFree(v_B_gpu), 
-    cudaFree(v_buffer_gpu), 
+    cudaFree(v_buffer_gpu_triangles),
+    cudaFree(v_buffer_gpu_squares), 
     cudaFree(v_out_gpu_0), 
     cudaFree(v_out_gpu_1),
     cudaFree(v_out_gpu_2);
     cudaFree(v_Q_gpu);
+    TIME_EVENT_DESTROY(timing_0);
+    TIME_EVENT_DESTROY(timing_1);
+    TIME_EVENT_DESTROY(timing_2);
+
     return EXIT_SUCCESS;
 }

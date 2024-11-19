@@ -3,7 +3,7 @@
 #include <diag_search.cuh>
 
 typedef int2 coordinate;
-int constexpr THREADS_PER_BLOCK = 128;
+int constexpr THREADS_PER_BLOCK = 4;
 
 template <class T>
 __global__ void mergeSmall_k_gpu_seq(const T *A_ptr,
@@ -359,7 +359,7 @@ __global__ void merge_k_triangles(const T *A_ptr,
 
     __syncthreads();
 
-    block_bin_search(A_shared + 1, B_shared + 1, K, P, M_ptr, blk_left_border, blk_right_border, blk_top_border, blk_bottom_border, base, height);
+    block_bin_search_triangles(A_shared + 1, B_shared + 1, K, P, M_ptr, blk_left_border, blk_right_border, blk_top_border, blk_bottom_border, base, height);
 
     if (DEBUG)
         printf("Block %d thread %d finished binsearch\n", blockIdx.x, threadIdx.x);
@@ -402,9 +402,7 @@ __global__ void merge_k_gpu_squares(const T *A_ptr,
   //assert(blockDim.x >= 4);
 
   __shared__ T shared_mem[THREADS_PER_BLOCK];
-
-  int tid = threadIdx.x + blockIdx.x * blockDim.x;
-
+  
   int2 Q_next = Q_global[blockIdx.x];
   int2 Q_prev = (blockIdx.x > 0) ? Q_global[blockIdx.x - 1] : make_int2(0, 0);
 
@@ -415,23 +413,6 @@ __global__ void merge_k_gpu_squares(const T *A_ptr,
 
   int base = Q_next.x - Q_prev.x;
   int height = Q_next.y - Q_prev.y;
-
-  /*if(blockIdx.x != 0)
-  {
-    if(height == 0)
-    {
-      base--;
-      x_start++;
-    }
-    else if(base == 0)
-    {
-      height--;
-      y_start++;
-    }
-  }*/
-
-  // T *A_local = shared_mem;
-  // T *B_local = shared_mem + height + 2;
 
   T *A_local = shared_mem;
   T *B_local = shared_mem + height;
@@ -445,31 +426,13 @@ __global__ void merge_k_gpu_squares(const T *A_ptr,
     B_local[threadIdx.x - height] = B_ptr[x_start + threadIdx.x - height];
   }
 
-  //for now we try to schedule the loading of the border elements in different warps to reduce branch divergence (we assume NUM_THREADS_PER_BLOCK >= 128)
-  // if(threadIdx.x == 0)
-  // {
-  //   A_local[0] = (y_start > 0) ? A_ptr[y_start - 1] : 0;
-  // }
-  // if(threadIdx.x == 32)
-  // {
-  //   A_local[height + 1] = (y_end < A_size) ? A_ptr[y_end] : 0;
-  // }
-  // if(threadIdx.x == 64)
-  // {
-  //   B_local[0] = (x_start > 0) ? B_ptr[x_start - 1] : 0;
-  // }
-  // if(threadIdx.x == 96)
-  // {
-  //   B_local[base + 1] = (x_end < B_size) ? B_ptr[x_end] : 0;
-  // }
-
-  // if(threadIdx.x < 2)
-  // {
-  //   int idx = threadIdx.x * (height + 1);
-  //   A_local[idx] = (y_start > 0 && threadIdx.x == 0) ? A_ptr[y_start - 1] : (y_end < A_size && threadIdx.x == 1) ? A_ptr[y_end] : 0;
-  // }
+  if(blockIdx.x == 3)
+  {
+    print_shared(A_local, B_local, base, height);
+  }
 
   __syncthreads();
+
 
   print_shared(A_local, B_local, base, height);
 
@@ -483,15 +446,11 @@ __global__ void merge_k_gpu_squares(const T *A_ptr,
   //int reverse_tid = blockDim.x - threadIdx.x - 1;
   int reverse_tid = blockDim.x - threadIdx.x - 1 * (blockIdx.x == 0);
 
-
   K.x = base >= reverse_tid ? base - reverse_tid : 0;
   K.y = base >= reverse_tid ? height : height + base - reverse_tid;
 
   P.x = height >= reverse_tid ? base : base + height - reverse_tid;
   P.y = height >= reverse_tid ? height - reverse_tid : 0;
-
-  //printf("Block %d thread %d search range: K(%d,%d) P(%d,%d)\n", blockIdx.x, threadIdx.x, K.x, K.y, P.x, P.y);
-  //printf("Block %d thread %d Q_next(%d,%d) Q_prev(%d,%d), base = %d, height = %d\n", blockIdx.x, threadIdx.x, Q_next.x, Q_next.y, Q_prev.x, Q_prev.y, base, height);
 
   if(threadIdx.x < base + height)
   {
