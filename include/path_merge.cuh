@@ -402,9 +402,7 @@ __global__ void merge_k_gpu_squares(const T *A_ptr,
   //assert(blockDim.x >= 4);
 
   __shared__ T shared_mem[THREADS_PER_BLOCK];
-
-  int tid = threadIdx.x + blockIdx.x * blockDim.x;
-
+  
   int2 Q_next = Q_global[blockIdx.x];
   int2 Q_prev = (blockIdx.x > 0) ? Q_global[blockIdx.x - 1] : make_int2(0, 0);
 
@@ -471,7 +469,7 @@ __global__ void merge_k_gpu_squares(const T *A_ptr,
 
   __syncthreads();
 
-  print_shared(A_local, B_local, base, height);
+  //print_shared(A_local, B_local, base, height);
 
   int2 K, P;
 

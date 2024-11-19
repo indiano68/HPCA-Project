@@ -7,6 +7,7 @@
 #include <path_merge.cuh>
 #include <wrapper.cuh>
 #include <thrust_merge.cuh>
+#include <cuda_timing.h>
 
 using v_type = int;
 
@@ -57,7 +58,9 @@ int main(int argc, char **argv)
 
 
     float time_0, time_1, time_2, time_3;
-    cudaEvent_t start, stop;
+    TIME_EVENT_DEFINE(timing_0);TIME_EVENT_CREATE(timing_0);
+    TIME_EVENT_DEFINE(timing_1);TIME_EVENT_CREATE(timing_1);
+    TIME_EVENT_DEFINE(timing_2);TIME_EVENT_CREATE(timing_2);
 
     if (vector_A.size() > vector_B.size())
     {
@@ -95,9 +98,8 @@ int main(int argc, char **argv)
         Benchmarking of Erik's Kernel
     ########################################
     */
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
-    cudaEventRecord(start, 0);
+
+    TIME_START(timing_0);
     for (int i = 0; i < N_ITER; i++)
     {
         partitioner<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
@@ -108,16 +110,13 @@ int main(int argc, char **argv)
                                                           v_B_gpu, vector_B.size(),
                                                           v_out_gpu_0, vector_out_0.size(), v_Q_gpu);
     }
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&time_0, start, stop);
+    TIME_STOP_SAVE(timing_0,time_0);
+
     cudaMemcpy(vector_out_0.data(), v_out_gpu_0, vector_sizeof(vector_out_0), cudaMemcpyDeviceToHost);
     cudaMemcpy(vector_Q.data(), v_Q_gpu, vector_sizeof(vector_Q), cudaMemcpyDeviceToHost);
 
-
-    
     /* Padding */
-    auto remainder = vector_out_1.size() % THREADS_PER_BLOCK;
+    auto remainder = (vector_out_1.size()-1) % THREADS_PER_BLOCK;
     size_t padding = (remainder == 0) ? 0 : THREADS_PER_BLOCK - remainder;
     auto v_buffer = vector_B;
     if (remainder != 0)
@@ -133,9 +132,7 @@ int main(int argc, char **argv)
         Benchmarking of Triangles Kernel
     ########################################
     */
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
-    cudaEventRecord(start, 0);
+    TIME_START(timing_1);
     emptyk<<<1, 1>>>();
     for (int i = 0; i < N_ITER; i++)
     {
@@ -143,19 +140,14 @@ int main(int argc, char **argv)
                                                                             v_buffer_gpu, v_buffer.size(),
                                                                             v_out_gpu_1);
     }
-
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&time_1, start, stop);
+    TIME_STOP_SAVE(timing_1,time_1)
     cudaMemcpy(vector_out_1.data(), v_out_gpu_1, vector_sizeof(vector_out_1), cudaMemcpyDeviceToHost);
     /*
     ########################################
         Benchmarking of Squares Kernel
     ########################################
     */
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
-    cudaEventRecord(start, 0);
+    TIME_START(timing_2);
     emptyk<<<1, 1>>>();
     for (int i = 0; i < N_ITER; i++)
     {
@@ -166,9 +158,8 @@ int main(int argc, char **argv)
                                                              v_buffer_gpu,v_buffer.size(),
                                                              v_out_gpu_2,v_Q_gpu);
     }
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&time_2, start, stop);
+    TIME_STOP_SAVE(timing_2,time_2);
+
     cudaMemcpy(vector_out_2.data(), v_out_gpu_2, vector_sizeof(vector_out_2), cudaMemcpyDeviceToHost);
 
 
@@ -185,5 +176,9 @@ int main(int argc, char **argv)
     cudaFree(v_out_gpu_1),
     cudaFree(v_out_gpu_2);
     cudaFree(v_Q_gpu);
+    TIME_EVENT_DESTROY(timing_0);
+    TIME_EVENT_DESTROY(timing_1);
+    TIME_EVENT_DESTROY(timing_2);
+
     return EXIT_SUCCESS;
 }
