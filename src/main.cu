@@ -30,6 +30,10 @@ int main(int argc, char **argv)
 
     std::vector<v_type> vector_1 = build_random_vector<v_type>(std::stoi(argv[1]), -1000, 1000);
     std::vector<v_type> vector_2 = build_random_vector<v_type>(std::stoi(argv[2]), -1000, 1000);
+    // std::vector<v_type> vector_1 = {30,50,60,80,110};
+    // std::vector<v_type> vector_2 = {10,20,40,70,90,100,120};
+    // std::vector<v_type> vector_1 = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+    // std::vector<v_type> vector_2 = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
     std::vector<v_type> vector_out0(vector_1.size() + vector_2.size());
     std::vector<v_type> vector_out1(vector_1.size() + vector_2.size());
 
@@ -47,8 +51,15 @@ int main(int argc, char **argv)
     std::sort(vector_1.begin(), vector_1.end());
     std::sort(vector_2.begin(), vector_2.end());
 
+    if (DEBUG)
+    {
+        std::cout << "Vector 1: " << std::endl;
+        print_vector(vector_1);
+        std::cout << "Vector 2: " << std::endl;
+        print_vector(vector_2);
+    }
+
     int block_size = (vector_1.size() + vector_2.size()) / 32;
-    // int block_num  = (vector_out0.size() + 1024-1) / 1024 ;
     int block_num = (vector_out0.size() + 32 - 1) / 32;
     cudaMalloc(&v_1_gpu, vector_sizeof(vector_1));
     cudaMalloc(&v_2_gpu, vector_sizeof(vector_2));
@@ -66,10 +77,10 @@ int main(int argc, char **argv)
 
     for (int i = 0; i < N_ITER; i++)
     {
-        partitioner<<<(vector_out0.size() + 32 - 1) / 32, 32>>>(v_1_gpu, vector_1.size(),
+        partitioner<<<(vector_out0.size() + 128 - 1) / 128, 128>>>(v_1_gpu, vector_1.size(),
                                                                 v_2_gpu, vector_2.size(),
                                                                 v_Q_gpu, block_num);
-        merge_k_blocked<<<(vector_out0.size() + 32 - 1) / 32, 32>>>(v_1_gpu, vector_1.size(),
+        merge_k_blocked<<<(vector_out0.size() + 128 - 1) / 128, 128>>>(v_1_gpu, vector_1.size(),
                                                                     v_2_gpu, vector_2.size(),
                                                                     v_out_gpu0, vector_out0.size(), v_Q_gpu);
     }
@@ -100,10 +111,10 @@ int main(int argc, char **argv)
     for (int i = 0; i < N_ITER; i++)
     {
 
-        // merge_k_triangles<<<(vector_out1.size() + 1024 - 1) / 1024, 1024>>>(v_1_gpu, vector_1.size(),
-        merge_k_triangles<<<(vector_out1.size() + 32 - 1) / 32, 32>>>(v_1_gpu, vector_1.size(),
-                                                                      v_buffer_gpu, v_buffer.size(),
-                                                                      v_out_gpu1);
+
+        merge_k_triangles<<<(vector_out1.size() + 128 - 1) / 128, 128>>>(v_1_gpu, vector_1.size(),
+                                                                            v_buffer_gpu, v_buffer.size(),
+                                                                            v_out_gpu1);
     }
 
     cudaEventRecord(stop, 0);
@@ -113,7 +124,7 @@ int main(int argc, char **argv)
     std::vector<v_type> vector_out2(vector_1.size() + vector_2.size());
     auto time2 = bench_thrust_merge(vector_1, vector_2, vector_out2, N_ITER);
     auto merged = mergeSmall_k_cpu(vector_1, vector_2);
-    std::cout << "Equality Erik mergeLarge    : " << (merged == vector_out0 ? "True " : "False ") << "T " << time0 / N_ITER << std::endl;
+    std::cout << "Equality Erik mergeLarge    : " << (merged == vector_out0 ? "True " : "False ")  << "T " << time0 / N_ITER << std::endl;
     std::cout << "Equality optim mergeLarge v1 : " << (merged == vector_out1 ? "True " : "False ") << "T " << time1 / N_ITER << std::endl;
     std::cout << "Equality thrust merge        : " << (merged == vector_out2 ? "True " : "False ") << "T " << time2 << std::endl;
     cudaFree(v_1_gpu);

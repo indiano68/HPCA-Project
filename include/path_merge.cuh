@@ -1,9 +1,9 @@
 #pragma once
 #include <vector>
+#include <diag_search.cuh>
 
 typedef int2 coordinate;
-int constexpr THREADS_PER_BLOCK = 32;
-int constexpr DEBUG = false;
+int constexpr THREADS_PER_BLOCK = 128;
 
 template <class T>
 __global__ void mergeSmall_k_gpu_seq(const T *A_ptr,
@@ -212,7 +212,6 @@ __global__ void merge_k_blocked(const T *v_1_ptr,
                               const int v_out_size,
                               const int2* v_Q_ptr)
 {
-    int thread_idx = threadIdx.x + blockIdx.x * blockDim.x;
     int2 K = {0, 0};
     int2 P = {0, 0};
     int2 Q = {0, 0};
@@ -241,7 +240,7 @@ __global__ void merge_k_blocked(const T *v_1_ptr,
         K.y = threadIdx.x;
         P.x = threadIdx.x;
     }
-    __shared__ T total [32];
+    __shared__ T total [THREADS_PER_BLOCK];
 
     T * v_blocked_1_ptr = total;
     T * v_blocked_2_ptr = total+v_1_blocked_size;
@@ -281,85 +280,6 @@ __global__ void merge_k_blocked(const T *v_1_ptr,
         {
             P.x = Q.x - 1;
             P.y = Q.y + 1;
-        }
-    }
-}
-
-
-
-template <class T>
-__device__ inline int2 explorative_search(const T *A_ptr, const size_t A_size, const T *B_ptr, const size_t B_size, int2 K, int2 P)
-{
-
-    while (true)
-    {
-        uint32_t offset = abs(K.y - P.y) / 2;
-        int2 Q = {K.x + (int)offset, K.y - (int)offset};
-
-        // i primi due if detectano se il punto è plausibile
-        if (Q.y == A_size || Q.x == 0 || A_ptr[Q.y] >= B_ptr[Q.x - 1])
-        {
-            if (Q.x == B_size || Q.y == 0 || A_ptr[Q.y - 1] <= B_ptr[Q.x])
-            {
-                return Q;
-            }
-            else
-            {
-                K = {Q.x + 1, Q.y - 1};
-            }
-        }
-        else
-        {
-            P = {Q.x - 1, Q.y + 1};
-        }
-    }
-}
-
-template <class T>
-__device__ void block_bin_search(const T *A_local, const T *B_local, int2 K, int2 P, T *M_global, bool blk_left_border, bool blk_right_border, bool blk_top_border, bool blk_bottom_border, int base, int height)
-{
-
-    int tid = threadIdx.x + blockIdx.x * blockDim.x;
-
-    while (true)
-    {
-        uint32_t offset = abs(K.y - P.y) / 2;
-        int2 Q = {K.x + (int)offset, K.y - (int)offset};
-
-        if (DEBUG)
-            printf("Block %d thread %d testing Q(%d,%d)\n", blockIdx.x, threadIdx.x, Q.x, Q.y);
-
-        // bool Q_bottom_border = (blk_bottom_border && Q.y == blockDim.x - 1);
-        bool Q_bottom_border = (blk_bottom_border && Q.y == height);
-        bool Q_left_border = (blk_left_border && Q.x == 0);
-        // bool Q_right_border = (blk_right_border && Q.x == blockDim.x - 1);
-        bool Q_right_border = (blk_right_border && Q.x == base);
-        bool Q_top_border = (blk_top_border && Q.y == 0);
-
-        if (Q_bottom_border || Q_left_border || A_local[Q.y] >= B_local[Q.x - 1])
-        {
-            if (Q_right_border || Q_top_border || A_local[Q.y - 1] <= B_local[Q.x])
-            {
-                if (!Q_bottom_border && (Q_right_border || A_local[Q.y] <= B_local[Q.x]))
-                {
-                    M_global[tid] = A_local[Q.y];
-                }
-                else
-                {
-                    M_global[tid] = B_local[Q.x];
-                }
-                if (DEBUG)
-                    printf("Block %d thread %d found Q(%d,%d)\n", blockIdx.x, threadIdx.x, Q.x, Q.y);
-                break;
-            }
-            else
-            {
-                K = {Q.x + 1, Q.y - 1};
-            }
-        }
-        else
-        {
-            P = {Q.x - 1, Q.y + 1};
         }
     }
 }
@@ -449,24 +369,245 @@ __global__ void merge_k_triangles(const T *A_ptr,
 
 template <class T>
 __global__ void partition_k_gpu(const T *A_ptr,
-                                const size_t A_size,
-                                const T *B_ptr,
-                                const size_t B_size,
-                                int2 *Q_global)
+                              const size_t A_size,
+                              const T *B_ptr,
+                              const size_t B_size,
+                              int2 *Q_global)
 {
 
-    // this kernel is launched with one thread per block (for now), THREADS_PER_BLOCK refers to the number of threads per block to be used in the merge stage
+  //this kernel is launched with one thread per block (for now), THREADS_PER_BLOCK refers to the number of threads per block to be used in the merge stage
 
-    int tid = THREADS_PER_BLOCK * (blockIdx.x + 1) - 1;
+  int tid = THREADS_PER_BLOCK * (blockIdx.x + 1) - 1;
 
+  int2 K_explorative = {0, 0}, P_explorative = {0, 0};
+
+  K_explorative.x = (tid > A_size) ? tid - A_size : 0;
+  K_explorative.y = (tid < A_size) ? tid : A_size;
+  P_explorative.x = (tid < B_size) ? tid : B_size;
+  P_explorative.y = (tid > B_size) ? tid - B_size : 0;
+
+  Q_global[blockIdx.x] = explorative_search(A_ptr, A_size, B_ptr, B_size, K_explorative, P_explorative);
+  return;
+}
+
+template <class T>
+__global__ void merge_k_gpu_squares(const T *A_ptr,
+                                            const size_t A_size,
+                                            const T *B_ptr,
+                                            const size_t B_size,
+                                            T *M_ptr,
+                                            const int2 *Q_global)
+{
+
+  //assert(blockDim.x >= 4);
+
+  __shared__ T shared_mem[THREADS_PER_BLOCK + 4];
+
+  int2 Q_next = Q_global[blockIdx.x];
+  int2 Q_prev = (blockIdx.x > 0) ? Q_global[blockIdx.x - 1] : make_int2(0, 0);
+
+  int x_start = Q_prev.x;
+  int y_start = Q_prev.y;
+  int x_end = Q_next.x;
+  int y_end = Q_next.y;
+
+  int base = Q_next.x - Q_prev.x;
+  int height = Q_next.y - Q_prev.y;
+
+  if(blockIdx.x != 0)
+  {
+    if(height == 0)
+    {
+      base--;
+      x_start++;
+    }
+    else if(base == 0)
+    {
+      height--;
+      y_start++;
+    }
+  }
+
+  T *A_local = shared_mem;
+  T *B_local = shared_mem + height + 2;
+
+  if(threadIdx.x < height)
+  {
+    A_local[threadIdx.x + 1] = A_ptr[y_start + threadIdx.x];
+  }
+  else if(threadIdx.x < height + base)
+  {
+    B_local[threadIdx.x - height + 1] = B_ptr[x_start + threadIdx.x - height];
+  }
+
+  if(threadIdx.x == 0)
+  {
+    A_local[0] = (y_start > 0) ? A_ptr[y_start - 1] : 0;
+  }
+  else if(threadIdx.x == 1)
+  {
+    A_local[height + 1] = (y_end < A_size) ? A_ptr[y_end] : 0;
+  }
+  else if(threadIdx.x == 2)
+  {
+    B_local[0] = (x_start > 0) ? B_ptr[x_start - 1] : 0;
+  }
+  else if(threadIdx.x == 3)
+  {
+    B_local[base + 1] = (x_end < B_size) ? B_ptr[x_end] : 0;
+  }
+
+  // if(threadIdx.x < 2)
+  // {
+  //   int idx = threadIdx.x * (height + 1);
+  //   A_local[idx] = (y_start > 0 && threadIdx.x == 0) ? A_ptr[y_start - 1] : (y_end < A_size && threadIdx.x == 1) ? A_ptr[y_end] : 0;
+  // }
+
+  __syncthreads();
+
+  if(DEBUG) print_shared(A_local, B_local, base, height);
+
+  int2 K, P;
+
+  bool blk_left_border = (x_start == 0);
+  bool blk_top_border = (y_start == 0);
+  bool blk_bottom_border = (y_end == A_size);
+  bool blk_right_border = (x_end == B_size);
+
+  int reverse_tid = blockDim.x - threadIdx.x - 1;
+
+  K.x = base >= reverse_tid ? base - reverse_tid : 0;
+  K.y = base >= reverse_tid ? height : height + base - reverse_tid;
+
+  P.x = height >= reverse_tid ? base : base + height - reverse_tid;
+  P.y = height >= reverse_tid ? height - reverse_tid : 0;
+
+  block_bin_search(A_local + 1, B_local + 1, K, P, M_ptr, blk_left_border, blk_right_border, blk_top_border, blk_bottom_border, base, height);
+
+  return;
+}
+
+
+template <class T>
+__global__ void merge_k_gpu_squares_v2(const T *A_ptr,
+                                            const size_t A_size,
+                                            const T *B_ptr,
+                                            const size_t B_size,
+                                            T *M_ptr)
+{
+
+  //assert(blockDim.x >= 4);
+
+  __shared__ T shared_mem[THREADS_PER_BLOCK + 4];
+  __shared__ int2 Q_prev, Q_next;
+
+  if (threadIdx.x == 0)
+  {
+    int diag_prev = (blockIdx.x != 0) ? THREADS_PER_BLOCK * blockIdx.x - 1 : 0;
     int2 K_explorative = {0, 0}, P_explorative = {0, 0};
 
-    K_explorative.x = (tid > A_size) ? tid - A_size : 0;
-    K_explorative.y = (tid < A_size) ? tid : A_size;
-    P_explorative.x = (tid < B_size) ? tid : B_size;
-    P_explorative.y = (tid > B_size) ? tid - B_size : 0;
+    K_explorative.x = (diag_prev > A_size) ? diag_prev - A_size : 0;
+    K_explorative.y = (diag_prev < A_size) ? diag_prev : A_size;
+    P_explorative.x = (diag_prev < B_size) ? diag_prev : B_size;
+    P_explorative.y = (diag_prev > B_size) ? diag_prev - B_size : 0;
 
-    Q_global[blockIdx.x] = explorative_search(A_ptr, A_size, B_ptr, B_size, K_explorative, P_explorative);
+    Q_prev = explorative_search(A_ptr, A_size, B_ptr, B_size, K_explorative, P_explorative);
+  }
+  else if (threadIdx.x == blockDim.x - 1)
+  {
+    int diag_next = THREADS_PER_BLOCK * (blockIdx.x + 1) - 1;
+    int2 K_explorative = {0, 0}, P_explorative = {0, 0};
 
-    return;
+    K_explorative.x = (diag_next > A_size) ? diag_next - A_size : 0;
+    K_explorative.y = (diag_next < A_size) ? diag_next : A_size;
+    P_explorative.x = (diag_next < B_size) ? diag_next : B_size;
+    P_explorative.y = (diag_next > B_size) ? diag_next - B_size : 0;
+
+    Q_next = explorative_search(A_ptr, A_size, B_ptr, B_size, K_explorative, P_explorative);
+  }
+
+  __syncthreads();
+
+  //int2 Q_next = Q_global[blockIdx.x];
+  //int2 Q_prev = (blockIdx.x > 0) ? Q_global[blockIdx.x - 1] : make_int2(0, 0);
+
+  int x_start = Q_prev.x;
+  int y_start = Q_prev.y;
+  int x_end = Q_next.x;
+  int y_end = Q_next.y;
+
+  int base = Q_next.x - Q_prev.x;
+  int height = Q_next.y - Q_prev.y;
+
+  if(blockIdx.x != 0)
+  {
+    if(height == 0)
+    {
+      base--;
+      x_start++;
+    }
+    else if(base == 0)
+    {
+      height--;
+      y_start++;
+    }
+  }
+
+  T *A_local = shared_mem;
+  T *B_local = shared_mem + height + 2;
+
+  if(threadIdx.x < height)
+  {
+    A_local[threadIdx.x + 1] = A_ptr[y_start + threadIdx.x];
+  }
+  else if(threadIdx.x < height + base)
+  {
+    B_local[threadIdx.x - height + 1] = B_ptr[x_start + threadIdx.x - height];
+  }
+
+  if(threadIdx.x == 0)
+  {
+    A_local[0] = (y_start > 0) ? A_ptr[y_start - 1] : 0;
+  }
+  else if(threadIdx.x == 1)
+  {
+    A_local[height + 1] = (y_end < A_size) ? A_ptr[y_end] : 0;
+  }
+  else if(threadIdx.x == 2)
+  {
+    B_local[0] = (x_start > 0) ? B_ptr[x_start - 1] : 0;
+  }
+  else if(threadIdx.x == 3)
+  {
+    B_local[base + 1] = (x_end < B_size) ? B_ptr[x_end] : 0;
+  }
+
+  // if(threadIdx.x < 2)
+  // {
+  //   int idx = threadIdx.x * (height + 1);
+  //   A_local[idx] = (y_start > 0 && threadIdx.x == 0) ? A_ptr[y_start - 1] : (y_end < A_size && threadIdx.x == 1) ? A_ptr[y_end] : 0;
+  // }
+
+  __syncthreads();
+
+  if(DEBUG) print_shared(A_local, B_local, base, height);
+
+  int2 K, P;
+
+  bool blk_left_border = (x_start == 0);
+  bool blk_top_border = (y_start == 0);
+  bool blk_bottom_border = (y_end == A_size);
+  bool blk_right_border = (x_end == B_size);
+
+  int reverse_tid = blockDim.x - threadIdx.x - 1;
+
+  K.x = base >= reverse_tid ? base - reverse_tid : 0;
+  K.y = base >= reverse_tid ? height : height + base - reverse_tid;
+
+  P.x = height >= reverse_tid ? base : base + height - reverse_tid;
+  P.y = height >= reverse_tid ? height - reverse_tid : 0;
+
+  block_bin_search(A_local + 1, B_local + 1, K, P, M_ptr, blk_left_border, blk_right_border, blk_top_border, blk_bottom_border, base, height);
+
+  return;
 }

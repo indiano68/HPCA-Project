@@ -24,7 +24,6 @@ std::vector<T> build_random_vector(size_t size, T min_value, T max_value)
     static_assert(std::is_arithmetic<T>::value, "Template type must be numeric");
     std::vector<T> random_vector;
     random_vector.reserve(size);
-    // Random number generation setup
     std::random_device rd;
     auto seed = rd() + static_cast<unsigned int>(time(nullptr));
     std::mt19937 gen(seed);
