@@ -32,7 +32,7 @@ std::vector<T> call_merge_kernel(std::vector<T> A,std::vector<T> B)
 
     int num_blocks = (M.size() + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
 
-    auto remainder = M.size() % THREADS_PER_BLOCK;
+    auto remainder = (M.size() - 1) % THREADS_PER_BLOCK;
     size_t padding = (remainder == 0) ? 0 : THREADS_PER_BLOCK - remainder;
 
     if(remainder != 0)
