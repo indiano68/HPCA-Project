@@ -57,10 +57,12 @@ int main(int argc, char **argv)
     std::vector<int2> vector_Q;
 
 
-    float time_0, time_1, time_2, time_3;
+    float time_0, time_1, time_2, time_3, time_partitioning_erik, time_partitioning_squares;
     TIME_EVENT_DEFINE(timing_0);TIME_EVENT_CREATE(timing_0);
     TIME_EVENT_DEFINE(timing_1);TIME_EVENT_CREATE(timing_1);
     TIME_EVENT_DEFINE(timing_2);TIME_EVENT_CREATE(timing_2);
+    TIME_EVENT_DEFINE(timing_partitioning_erik);TIME_EVENT_CREATE(timing_partitioning_erik);
+    TIME_EVENT_DEFINE(timing_partitioning_squares);TIME_EVENT_CREATE(timing_partitioning_squares);
 
     if (vector_A.size() > vector_B.size())
     {
@@ -99,12 +101,14 @@ int main(int argc, char **argv)
     ########################################
     */
 
-    TIME_START(timing_0);
+    TIME_START(timing_0);TIME_START(timing_partitioning_erik);
     for (int i = 0; i < N_ITER; i++)
     {
         partitioner<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
                                                       v_B_gpu, vector_B.size(),
                                                       v_Q_gpu, block_num);
+
+        TIME_STOP_SAVE(timing_partitioning_erik, time_partitioning_erik);
 
         merge_k_blocked<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
                                                           v_B_gpu, vector_B.size(),
@@ -150,13 +154,15 @@ int main(int argc, char **argv)
     ########################################
     */
     dim3 grid((vector_out_size + THREADS_PER_BLOCK) / THREADS_PER_BLOCK);
-    TIME_START(timing_2);
+    TIME_START(timing_2);TIME_START(timing_partitioning_squares);
     emptyk<<<1, 1>>>();
     for (int i = 0; i < N_ITER; i++)
     {
         partition_k_gpu<<<grid, 1>>>(v_A_gpu, vector_A.size(),
                                           v_B_gpu, vector_B.size(),
                                           v_Q_gpu);
+
+        TIME_STOP_SAVE(timing_partitioning_squares, time_partitioning_squares);
 
         merge_k_gpu_squares<<<grid, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
                                                                  v_B_gpu, vector_B.size(),
@@ -169,9 +175,9 @@ int main(int argc, char **argv)
     time_3 = bench_thrust_merge(vector_A, vector_B, vector_out_3, N_ITER);
     auto merged = mergeSmall_k_cpu(vector_A, vector_B);
 
-    std::cout << "Equality Erik     mergeLarge    : " << (merged == vector_out_0 ? "True " : "False ") << "T " << time_0 / N_ITER << std::endl;
+    std::cout << "Equality Erik     mergeLarge    : " << (merged == vector_out_0 ? "True " : "False ") << "T " << time_0 / N_ITER << " | Partition T " << time_partitioning_erik / N_ITER << std::endl;
     std::cout << "Equality Triangle mergeLarge    : " << (merged == vector_out_1 ? "True " : "False ") << "T " << time_1 / N_ITER << std::endl;
-    std::cout << "Equality Squares  mergeLarge    : " << (merged == vector_out_2 ? "True " : "False ") << "T " << time_2 / N_ITER << std::endl;
+    std::cout << "Equality Squares  mergeLarge    : " << (merged == vector_out_2 ? "True " : "False ") << "T " << time_2 / N_ITER << " | Partition T " << time_partitioning_squares / N_ITER << std::endl;
     std::cout << "Equality thrust   merge         : " << (merged == vector_out_3 ? "True " : "False ") << "T " << time_3 << std::endl;
     cudaFree(v_A_gpu), 
     cudaFree(v_B_gpu), 
