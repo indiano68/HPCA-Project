@@ -1,5 +1,6 @@
 #pragma once
-#define DEBUG false
+
+int constexpr DEBUG = false;
 
 template <class T>
 __device__ void print_shared(T *A_shared, T *B_shared, int base, int height)

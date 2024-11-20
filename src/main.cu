@@ -33,8 +33,7 @@ int main(int argc, char **argv)
     */
     v_type *v_A_gpu, 
            *v_B_gpu, 
-           *v_buffer_gpu_triangles,
-           *v_buffer_gpu_squares,
+           *v_buffer_gpu,
            *v_out_gpu_0, 
            *v_out_gpu_1,
            *v_out_gpu_2;
@@ -45,15 +44,6 @@ int main(int argc, char **argv)
     */
     std::vector<v_type> vector_A = build_random_vector<v_type>(std::stoi(argv[1]), -1000, 1000);
     std::vector<v_type> vector_B = build_random_vector<v_type>(std::stoi(argv[2]), -1000, 1000);
-    print_vector(vector_A, "Vector A");
-    print_vector(vector_B, "Vector B");
-    //std::vector<v_type> vector_B = {2,4,5,6,7,11,12};
-    //std::vector<v_type> vector_A = {1,3,8,9,10};
-    // std::vector<v_type> vector_B = {5,7,8,9,10,11,12};
-    // std::vector<v_type> vector_A = {1,2,3,4,6};
-    // std::vector<v_type> vector_A = {1};
-    // std::vector<v_type> vector_B = {2};
-    
 
     /*
         Building buffers for that allow the varius benchmakred kernels 
@@ -81,7 +71,7 @@ int main(int argc, char **argv)
     std::sort(vector_A.begin(), vector_A.end());
     std::sort(vector_B.begin(), vector_B.end());
 
-    if (DEBUG)
+    if constexpr(DEBUG)
     {
         std::cout << "Vector 1: " << std::endl;
         print_vector(vector_A);
@@ -135,11 +125,11 @@ int main(int argc, char **argv)
         v_buffer.resize(v_buffer.size() + padding, biggest_element);
     }
 
-    cudaMalloc(&v_buffer_gpu_triangles, vector_sizeof(v_buffer));
-    cudaMemcpy(v_buffer_gpu_triangles, v_buffer.data(), vector_sizeof(v_buffer), cudaMemcpyHostToDevice);
+    cudaMalloc(&v_buffer_gpu, vector_sizeof(v_buffer));
+    cudaMemcpy(v_buffer_gpu, v_buffer.data(), vector_sizeof(v_buffer), cudaMemcpyHostToDevice);
 
     /*
-    ########################################
+    #######################################
         Benchmarking of Triangles Kernel
     ########################################
     */
@@ -148,46 +138,29 @@ int main(int argc, char **argv)
     // for (int i = 0; i < N_ITER; i++)
     // {
     //     merge_k_triangles<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
-    //                                                                         v_buffer_gpu_triangles, v_buffer.size(),
-    //                                                                         v_out_gpu_1);
+    //                                                         v_buffer_gpu, v_buffer.size(),
+    //                                                         v_out_gpu_1);
     // }
     TIME_STOP_SAVE(timing_1,time_1)
     cudaMemcpy(vector_out_1.data(), v_out_gpu_1, vector_sizeof(vector_out_1), cudaMemcpyDeviceToHost);
     
-    
-    // Padding for Squares kernel
-    remainder = (vector_out_1.size()+1) % THREADS_PER_BLOCK;
-    padding = (remainder == 0) ? 0 : remainder;
-    v_buffer = vector_B;
-    if (remainder != 0)
-    {
-        auto biggest_element = std::max(vector_A.back(), vector_B.back());
-        v_buffer.resize(v_buffer.size() + padding, biggest_element);
-        //grid.x++;
-    }
-    dim3 grid((vector_A.size() + v_buffer.size() + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK);
-
-
-    cudaMalloc(&v_buffer_gpu_squares, vector_sizeof(v_buffer));
-    cudaMemcpy(v_buffer_gpu_squares, v_buffer.data(), vector_sizeof(v_buffer), cudaMemcpyHostToDevice);
-
-    print_vector(v_buffer, "Buffer padded");
-    printf("Grid size: %d\n", grid.x);
     /*
     ########################################
         Benchmarking of Squares Kernel
     ########################################
     */
+    dim3 grid((vector_out_size + THREADS_PER_BLOCK) / THREADS_PER_BLOCK);
     TIME_START(timing_2);
     emptyk<<<1, 1>>>();
     for (int i = 0; i < N_ITER; i++)
     {
-        partition_k_gpu<<<grid,1>>>(v_A_gpu,vector_A.size(),
-                                                         v_buffer_gpu_squares,v_buffer.size(),
-                                                         v_Q_gpu);
-        merge_k_gpu_squares<<<grid,THREADS_PER_BLOCK>>>(v_A_gpu,vector_A.size(),
-                                                             v_buffer_gpu_squares,v_buffer.size(),
-                                                             v_out_gpu_2,v_Q_gpu);
+        partition_k_gpu<<<grid, 1>>>(v_A_gpu, vector_A.size(),
+                                          v_B_gpu, vector_B.size(),
+                                          v_Q_gpu);
+
+        merge_k_gpu_squares<<<grid, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
+                                                                 v_B_gpu, vector_B.size(),
+                                                                 v_out_gpu_2, v_Q_gpu);
     }
     TIME_STOP_SAVE(timing_2,time_2);
 
@@ -202,15 +175,14 @@ int main(int argc, char **argv)
     std::cout << "Equality thrust   merge         : " << (merged == vector_out_3 ? "True " : "False ") << "T " << time_3 << std::endl;
     cudaFree(v_A_gpu), 
     cudaFree(v_B_gpu), 
-    cudaFree(v_buffer_gpu_triangles),
-    cudaFree(v_buffer_gpu_squares), 
+    cudaFree(v_buffer_gpu),
     cudaFree(v_out_gpu_0), 
     cudaFree(v_out_gpu_1),
     cudaFree(v_out_gpu_2);
     cudaFree(v_Q_gpu);
-    TIME_EVENT_DESTROY(timing_0);
-    TIME_EVENT_DESTROY(timing_1);
-    TIME_EVENT_DESTROY(timing_2);
+    TIME_EVENT_DESTROY(timing_0)
+    TIME_EVENT_DESTROY(timing_1)
+    TIME_EVENT_DESTROY(timing_2)
 
     return EXIT_SUCCESS;
 }
