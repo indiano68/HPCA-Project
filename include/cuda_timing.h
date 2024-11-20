@@ -63,7 +63,4 @@ typedef char time_event;
  * @param timing_var Variable that hosts elapsed time, needs to be a float.
  * 
 */
-#define TIME_EVENT_DESTROY(event_name)\
-        cudaEventDestroy(start_##event_name);\
-        cudaEventDestroy(stop_##event_name);\
-
+#define TIME_EVENT_DESTROY(event_name) cudaEventDestroy(start_##event_name); cudaEventDestroy(stop_##event_name);
