@@ -39,7 +39,8 @@ int main(int argc, char **argv)
            *v_out_gpu_0, 
            *v_out_gpu_1,
            *v_out_gpu_2;
-    int2   *v_Q_gpu;
+    int2   *v_Q_gpu,
+           *v_Q_gpu_squares;
     
     /*
         Building vectors to sort 
@@ -59,7 +60,7 @@ int main(int argc, char **argv)
     std::vector<int2> vector_Q;
 
 
-    float time_0, time_1, time_2, time_3, time_partitioning_erik, time_partitioning_squares;
+    float time_0 = 0, time_1 = 0, time_2 = 0, time_3 = 0, time_partitioning_erik = 0, time_partitioning_squares = 0;
     TIME_EVENT_DEFINE(timing_0);TIME_EVENT_CREATE(timing_0);
     TIME_EVENT_DEFINE(timing_1);TIME_EVENT_CREATE(timing_1);
     TIME_EVENT_DEFINE(timing_2);TIME_EVENT_CREATE(timing_2);
@@ -84,6 +85,8 @@ int main(int argc, char **argv)
     }
 
     int block_num = (vector_out_size + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    // block number for squares kernel is slightly different
+    dim3 grid_squares((vector_out_size + THREADS_PER_BLOCK) / THREADS_PER_BLOCK);
     // cudaMalloc(&v_A_gpu     , vector_sizeof(vector_A));
     // cudaMalloc(&v_B_gpu     , vector_sizeof(vector_B));
     cudaMalloc(&v_A_B_gpu   , vector_sizeof(vector_A) + vector_sizeof(vector_B));
@@ -93,6 +96,7 @@ int main(int argc, char **argv)
     cudaMalloc(&v_out_gpu_1 , vector_sizeof(vector_out_1));
     cudaMalloc(&v_out_gpu_2 , vector_sizeof(vector_out_2));
     cudaMalloc(&v_Q_gpu     , (block_num) * sizeof(int2));
+    cudaMalloc(&v_Q_gpu_squares, grid_squares.x * sizeof(int2));
 
     vector_Q.resize(block_num);
     cudaMemcpy(v_A_gpu, vector_A.data(), vector_sizeof(vector_A), cudaMemcpyHostToDevice);
@@ -156,10 +160,8 @@ int main(int argc, char **argv)
         Benchmarking of Squares Kernel
     ########################################
     */
-    //squares kernel needs a slightly different grid size. Partitioner computes his grid size from grid size of squares kernel
-    dim3 grid_squares((vector_out_size + THREADS_PER_BLOCK) / THREADS_PER_BLOCK);
+    //Partitioner computes his grid size from grid size of squares kernel
     dim3 grid_partitioning_packed((grid_squares.x + THREADS_PER_BLOCK_PARTITIONER - 1) / THREADS_PER_BLOCK_PARTITIONER);
-
     emptyk<<<1, 1>>>();
     TIME_START(timing_2);TIME_START(timing_partitioning_squares);
     for (int i = 0; i < N_ITER; i++)
@@ -171,13 +173,13 @@ int main(int argc, char **argv)
 
         partition_k_gpu_packed<<<grid_partitioning_packed, THREADS_PER_BLOCK_PARTITIONER>>>(v_A_gpu, vector_A.size(),
                                                                                             v_B_gpu, vector_B.size(),
-                                                                                            v_Q_gpu);
+                                                                                            v_Q_gpu_squares);
 
         TIME_STOP_SAVE(timing_partitioning_squares, time_partitioning_squares);
 
         merge_k_gpu_squares<<<grid_squares, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
                                                          v_B_gpu, vector_B.size(),
-                                                         v_out_gpu_2, v_Q_gpu);
+                                                         v_out_gpu_2, v_Q_gpu_squares);
 
         // merge_k_gpu_squares_v2<<<grid, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
         //                                                     v_B_gpu, vector_B.size(),

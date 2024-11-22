@@ -4,7 +4,7 @@
 
 typedef int2 coordinate;
 int constexpr THREADS_PER_BLOCK = 1024;
-unsigned constexpr THREADS_PER_BLOCK_PARTITIONER = 1024;
+unsigned constexpr THREADS_PER_BLOCK_PARTITIONER = 32;
 
 template <class T>
 __global__ void mergeSmall_k_gpu_seq(const T *A_ptr,
@@ -407,7 +407,9 @@ __global__ void partition_k_gpu_packed(const T *A_ptr,
   // int diag = (THREADS_PER_BLOCK * (tid + 1) - 1) > A_size + B_size ? A_size + B_size : THREADS_PER_BLOCK * (tid + 1) - 1;
   unsigned diag = min(THREADS_PER_BLOCK * (tid + 1) - 1, (unsigned)(A_size + B_size));
 
-  if(tid < A_size + B_size)
+  unsigned Q_global_size = (A_size + B_size + THREADS_PER_BLOCK) / THREADS_PER_BLOCK;
+
+  if(tid < Q_global_size)
   {
 
     //printf("Block %d thread %d diag = %d\n", blockIdx.x, threadIdx.x, diag);
@@ -480,6 +482,17 @@ __global__ void merge_k_gpu_squares(const T *A_ptr,
   } 
 
   __syncthreads();
+
+  // __shared__ T M_shared[THREADS_PER_BLOCK];
+
+  // if(threadIdx.x < base + height)
+  // {
+  //   block_bin_search_shared(A_local, B_local, K, P, M_ptr, base, height, M_shared);
+
+  //   int M_idx = threadIdx.x + blockIdx.x * blockDim.x - 1 * (blockIdx.x != 0);
+
+  //   M_ptr[M_idx] = M_shared[threadIdx.x];
+  // }
 
   if(threadIdx.x < base + height)
   {

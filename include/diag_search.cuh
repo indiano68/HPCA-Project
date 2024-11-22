@@ -101,6 +101,52 @@ __device__ __forceinline__ void block_bin_search(const T *A_local, const T *B_lo
 }
 
 template <class T>
+__device__ __forceinline__ void block_bin_search_shared(const T *A_local, const T *B_local, int2 K, int2 P, T *M_global, int base, int height, T *M_shared)
+{
+
+  //if blockIdx.x == 0 the insertion begins from the Q point found, otherwise it ends at the Q point found
+  // int M_idx = threadIdx.x + blockIdx.x * blockDim.x - 1 * (blockIdx.x != 0);
+
+  while (true)
+  {
+    //uint32_t offset = abs(K.y - P.y) / 2; don't need abs because we know that K.y > P.y
+    uint32_t offset = (K.y - P.y) / 2;
+    int2 Q = {K.x + (int)offset, K.y - (int)offset};
+
+    bool Q_bottom_border = (Q.y == height);
+    bool Q_right_border = (Q.x == base);
+    bool Q_left_border = (Q.x == 0);
+    bool Q_top_border = (Q.y == 0);
+
+    if (Q_bottom_border || Q_left_border || A_local[Q.y] > B_local[Q.x - 1])
+    {
+      if (Q_right_border || Q_top_border || A_local[Q.y - 1] <= B_local[Q.x])
+      {
+        if (!Q_bottom_border && (Q_right_border || A_local[Q.y] <= B_local[Q.x]))
+        {
+          // M_global[M_idx] = A_local[Q.y];
+          M_shared[threadIdx.x] = A_local[Q.y];
+        }
+        else
+        {
+          // M_global[M_idx] = B_local[Q.x];
+          M_shared[threadIdx.x] = B_local[Q.x];
+        }
+        break;
+      }
+      else
+      {
+        K = {Q.x + 1, Q.y - 1};
+      }
+    }
+    else
+    {
+      P = {Q.x - 1, Q.y + 1};
+    }
+  }
+}
+
+template <class T>
 __device__ __forceinline__ void block_bin_search_triangles(const T *A_local, const T *B_local, int2 K, int2 P, T *M_global, bool blk_left_border, bool blk_right_border, bool blk_top_border, bool blk_bottom_border, int base, int height)
 {
 
