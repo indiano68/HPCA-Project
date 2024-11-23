@@ -40,7 +40,7 @@ int main(int argc, char **argv)
            *v_out_gpu_1,
            *v_out_gpu_2;
     int2   *v_Q_gpu,
-           *v_Q_gpu_squares;
+           *v_Q_gpu_window;
     
     /*
         Building vectors to sort 
@@ -85,8 +85,8 @@ int main(int argc, char **argv)
     }
 
     int block_num = (vector_out_size + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    dim3 grid_window((vector_out_size + THREADS_PER_WINDOW - 1) / THREADS_PER_WINDOW);
     // block number for squares kernel is slightly different
-    dim3 grid_squares((vector_out_size + THREADS_PER_BLOCK) / THREADS_PER_BLOCK);
     // cudaMalloc(&v_A_gpu     , vector_sizeof(vector_A));
     // cudaMalloc(&v_B_gpu     , vector_sizeof(vector_B));
     cudaMalloc(&v_A_B_gpu   , vector_sizeof(vector_A) + vector_sizeof(vector_B));
@@ -96,7 +96,7 @@ int main(int argc, char **argv)
     cudaMalloc(&v_out_gpu_1 , vector_sizeof(vector_out_1));
     cudaMalloc(&v_out_gpu_2 , vector_sizeof(vector_out_2));
     cudaMalloc(&v_Q_gpu     , (block_num) * sizeof(int2));
-    cudaMalloc(&v_Q_gpu_squares, grid_squares.x * sizeof(int2));
+    cudaMalloc(&v_Q_gpu_window, THREADS_PER_WINDOW * WINDOWS_PER_BLOCK * sizeof(int2));
 
     vector_Q.resize(block_num);
     cudaMemcpy(v_A_gpu, vector_A.data(), vector_sizeof(vector_A), cudaMemcpyHostToDevice);
@@ -161,29 +161,25 @@ int main(int argc, char **argv)
     ########################################
     */
     //Partitioner computes his grid size from grid size of squares kernel
-    dim3 grid_partitioning_packed((grid_squares.x + THREADS_PER_BLOCK_PARTITIONER - 1) / THREADS_PER_BLOCK_PARTITIONER);
+    dim3 grid_partitioning_squares((block_num + THREADS_PER_BLOCK_PARTITIONER - 1) / THREADS_PER_BLOCK_PARTITIONER);
     emptyk<<<1, 1>>>();
     TIME_START(timing_2);TIME_START(timing_partitioning_squares);
     for (int i = 0; i < N_ITER; i++)
-    {
-        // partition_k_gpu<<<grid_squares, 1>>>(v_A_gpu, vector_A.size(),
-        //                              v_B_gpu, vector_B.size(),
-        //                              v_Q_gpu);
-        
+    {        
 
-        partition_k_gpu_packed<<<grid_partitioning_packed, THREADS_PER_BLOCK_PARTITIONER>>>(v_A_gpu, vector_A.size(),
-                                                                                            v_B_gpu, vector_B.size(),
-                                                                                            v_Q_gpu_squares);
+        partition_k_gpu_packed<<<grid_partitioning_squares, THREADS_PER_BLOCK_PARTITIONER>>>(v_A_gpu, vector_A.size(),
+                                                                                             v_B_gpu, vector_B.size(),
+                                                                                             v_Q_gpu);
 
         TIME_STOP_SAVE(timing_partitioning_squares, time_partitioning_squares);
 
-        merge_k_gpu_squares<<<grid_squares, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
+        merge_k_gpu_squares<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
                                                          v_B_gpu, vector_B.size(),
-                                                         v_out_gpu_2, v_Q_gpu_squares);
+                                                         v_out_gpu_2, v_Q_gpu);
 
-        // merge_k_gpu_squares_v2<<<grid, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
-        //                                                     v_B_gpu, vector_B.size(),
-        //                                                     v_out_gpu_2);
+        // merge_k_gpu_window<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
+        //                                                      v_B_gpu, vector_B.size(),
+        //                                                      v_out_gpu_2, v_Q_gpu);
 
     }
     TIME_STOP_SAVE(timing_2,time_2);

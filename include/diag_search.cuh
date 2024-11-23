@@ -30,7 +30,7 @@ template <class T>
 __device__ __forceinline__ int2 explorative_search(const T *A_ptr, const size_t A_size, const T *B_ptr, const size_t B_size, int2 K, int2 P)
 {
 
-while (true)
+  while (true)
   {
     //uint32_t offset = abs(K.y - P.y) / 2; don't need abs because we know that K.y > P.y
     uint32_t offset = (K.y - P.y) / 2;
@@ -61,7 +61,7 @@ __device__ __forceinline__ void block_bin_search(const T *A_local, const T *B_lo
 {
 
   //if blockIdx.x == 0 the insertion begins from the Q point found, otherwise it ends at the Q point found
-  int M_idx = threadIdx.x + blockIdx.x * blockDim.x - 1 * (blockIdx.x != 0);
+  int tid = threadIdx.x + blockIdx.x * blockDim.x;
 
   while (true)
   {
@@ -80,11 +80,11 @@ __device__ __forceinline__ void block_bin_search(const T *A_local, const T *B_lo
       {
         if (!Q_bottom_border && (Q_right_border || A_local[Q.y] <= B_local[Q.x]))
         {
-          M_global[M_idx] = A_local[Q.y];
+          M_global[tid] = A_local[Q.y];
         }
         else
         {
-          M_global[M_idx] = B_local[Q.x];
+          M_global[tid] = B_local[Q.x];
         }
         break;
       }
