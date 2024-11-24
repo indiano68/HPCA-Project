@@ -7,7 +7,7 @@
 
 #pragma once
 
-#ifdef CUDA_TIMING
+// #ifdef CUDA_TIMING
 
 typedef char time_event;
 
@@ -68,12 +68,12 @@ typedef char time_event;
 */
 #define TIME_EVENT_DESTROY(event_name) cudaEventDestroy(start_##event_name); cudaEventDestroy(stop_##event_name);
 
-#else
+// #else
 
-#define TIME_EVENT_DEFINE(event_name)
-#define TIME_EVENT_CREATE(event_name)
-#define TIME_START(event_name)
-#define TIME_STOP_SAVE(event_name, timing_var)
-#define TIME_EVENT_DESTROY(event_name)
+// #define TIME_EVENT_DEFINE(event_name)
+// #define TIME_EVENT_CREATE(event_name)
+// #define TIME_START(event_name)
+// #define TIME_STOP_SAVE(event_name, timing_var)
+// #define TIME_EVENT_DESTROY(event_name)
 
-#endif
+// #endif

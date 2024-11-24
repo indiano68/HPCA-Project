@@ -9,7 +9,7 @@
 #include <thrust_merge.cuh>
 #include <cuda_timing.h>
 
-constexpr int tilesize = 64; 
+constexpr int tilesize = 128;
 using v_type = int;
 #define CUDA_TIMING
 int main(int argc, char **argv)
