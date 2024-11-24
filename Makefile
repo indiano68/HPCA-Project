@@ -1,5 +1,5 @@
 # Determine the operating system
-  
+.RECIPEPREFIX = >
 ifeq ($(OS),Windows_NT)
     # Compiler settings for Windows
     CL_PATH ?= "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.41.34120/bin/HostX64/x64/cl.exe"
@@ -27,21 +27,24 @@ BUILD_DIR = build
 
 # Targets for CPU and CUDA builds
 # cpu: $(BUILD_DIR) $(BUILD_DIR)/executable$(EXEC)
-cuda: $(BUILD_DIR) $(BUILD_DIR)/executable_cuda$(EXEC)
+cuda: $(BUILD_DIR) $(BUILD_DIR)/executable_cuda$(EXEC) $(BUILD_DIR)/executable_tiled$(EXEC)
 # debug: $(BUILD_DIR) $(BUILD_DIR)/executable_debug$(EXEC)
 # cuda_debug: $(BUILD_DIR) $(BUILD_DIR)/executable_debug_cuda$(EXEC)
 
 # Create build directories if they do not exist
 $(BUILD_DIR):
-	@mkdir -p $(BUILD_DIR)
+>   @mkdir -p $(BUILD_DIR)
     
 # Compile debug CUDA executable
 $(BUILD_DIR)/executable_cuda$(EXEC): $(SRC_DIR)/main.cu $(INC_DIR)/*
-	@$(cuCC) $(cuCFLAGS) -o $(BUILD_DIR)/executable_cuda$(EXEC) -I $(INC_DIR)/ $(SRC_DIR)/main.cu 
+>   @$(cuCC) $(cuCFLAGS) -o $(BUILD_DIR)/executable_cuda$(EXEC) -I $(INC_DIR)/ $(SRC_DIR)/main.cu 
+
+$(BUILD_DIR)/executable_tiled$(EXEC): $(SRC_DIR)/main-tiled.cu $(INC_DIR)/*
+>   @$(cuCC) $(cuCFLAGS) -o $(BUILD_DIR)/executable_cuda_tiled$(EXEC) -I $(INC_DIR)/ $(SRC_DIR)/main-tiled.cu 
 
 # Clean build directories
 clean:
-	@rm -rf $(BUILD_DIR)
+>   @rm -rf $(BUILD_DIR)
 
 # Declare phony targets
 .PHONY: clean
