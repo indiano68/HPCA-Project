@@ -27,7 +27,7 @@ float bench_thrust_merge(const std::vector<T>& A, const std::vector<T>& B, std::
     TIME_EVENT_DESTROY(timing);
 
     thrust::copy(result.data(),result.data()+A.size() + B.size(),out.begin());
-    return milliseconds/NITER;
+    return milliseconds/(float)NITER;
 }
 
 template <typename T>
@@ -43,9 +43,6 @@ float bench_thrust_merge(T *A, size_t A_size, T *B, size_t B_size, std::vector<T
     std::cout << "B_size: " << B_size << std::endl;
 
     thrust::device_vector<T> result(A_size + B_size);
-
-    CUDA_CHECK(cudaDeviceSynchronize());
-    CUDA_CHECK(cudaGetLastError());
 
     float milliseconds = 0;
     TIME_EVENT_DEFINE(timing);TIME_EVENT_CREATE(timing);

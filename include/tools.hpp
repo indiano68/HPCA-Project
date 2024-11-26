@@ -5,6 +5,8 @@
 #include <random>
 #include <type_traits>
 
+using std::numeric_limits;
+
 // Add this macro for CUDA error checking
 #define CUDA_CHECK(call)                                                     \
     do                                                                       \
@@ -19,7 +21,7 @@
     } while (0)
 
 template <class T>
-std::vector<T> build_random_vector(size_t size, T min_value, T max_value)
+std::vector<T> build_random_vector(size_t size, T min_value = numeric_limits<T>::min(), T max_value = numeric_limits<T>::max())
 {
     static_assert(std::is_arithmetic<T>::value, "Template type must be numeric");
     std::vector<T> random_vector;

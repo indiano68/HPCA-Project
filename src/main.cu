@@ -1,5 +1,3 @@
-#define CUDA_TIMING 
-
 #include <iostream>
 #include <stdio.h>
 #include <tools.hpp>
@@ -12,8 +10,6 @@
 #include <thrust_merge.cuh>
 
 using v_type = int;
-
-int constexpr N_ITER = 1;
 
 __global__ void emptyk()
 {
@@ -37,16 +33,15 @@ int main(int argc, char **argv)
            *v_B_gpu,
            *v_A_B_gpu,
            *v_out_gpu_0, 
-           *v_out_gpu_1,
-           *v_out_gpu_2;
+           *v_out_gpu_1;
     int2   *v_Q_gpu,
            *v_Q_gpu_window;
     
     /*
         Building vectors to sort 
     */
-    std::vector<v_type> vector_A = build_random_vector<v_type>(std::stoi(argv[1]), -1000, 1000);
-    std::vector<v_type> vector_B = build_random_vector<v_type>(std::stoi(argv[2]), -1000, 1000);
+    std::vector<v_type> vector_A = build_random_vector<v_type>(std::stoi(argv[1])/*, -1000, 1000*/);
+    std::vector<v_type> vector_B = build_random_vector<v_type>(std::stoi(argv[2])/*, -1000, 1000*/);
 
     /*
         Building buffers for that allow the varius benchmakred kernels 
@@ -56,7 +51,6 @@ int main(int argc, char **argv)
     std::vector<v_type> vector_out_0(vector_out_size);
     std::vector<v_type> vector_out_1(vector_out_size);
     std::vector<v_type> vector_out_2(vector_out_size);
-    std::vector<v_type> vector_out_3(vector_out_size);
     std::vector<int2> vector_Q;
 
 
@@ -91,7 +85,6 @@ int main(int argc, char **argv)
     v_B_gpu = v_A_B_gpu + vector_A.size();
     cudaMalloc(&v_out_gpu_0 , vector_sizeof(vector_out_0));
     cudaMalloc(&v_out_gpu_1 , vector_sizeof(vector_out_1));
-    cudaMalloc(&v_out_gpu_2 , vector_sizeof(vector_out_2));
     cudaMalloc(&v_Q_gpu     , (block_num) * sizeof(int2));
     cudaMalloc(&v_Q_gpu_window, grid_window.x * sizeof(int2));
 
@@ -133,7 +126,6 @@ int main(int argc, char **argv)
     TIME_START(timing_window);TIME_START(timing_partitioning_window);
     for (int i = 0; i < N_ITER; i++)
     {        
-
         partition_k_gpu_packed<<<grid_partitioning_window, THREADS_PER_BLOCK_PARTITIONER>>>(v_A_gpu, vector_A.size(),
                                                                                             v_B_gpu, vector_B.size(),
                                                                                             v_Q_gpu_window);
@@ -141,27 +133,24 @@ int main(int argc, char **argv)
 
         merge_k_gpu_window<<<grid_window, TILE_SIZE>>>(v_A_gpu, vector_A.size(),
                                                        v_B_gpu, vector_B.size(),
-                                                       v_out_gpu_2, v_Q_gpu_window);
-
-
+                                                       v_out_gpu_1, v_Q_gpu_window);
     }
     TIME_STOP_SAVE(timing_window,time_window);
 
-    cudaMemcpy(vector_out_2.data(), v_out_gpu_2, vector_sizeof(vector_out_2), cudaMemcpyDeviceToHost);
+    cudaMemcpy(vector_out_1.data(), v_out_gpu_1, vector_sizeof(vector_out_1), cudaMemcpyDeviceToHost);
 
-    if constexpr(DEBUG) print_vector(vector_out_2);
+    if constexpr(DEBUG) print_vector(vector_out_1);
 
-    time_thrust = bench_thrust_merge(vector_A, vector_B, vector_out_3, N_ITER);
+    time_thrust = bench_thrust_merge(vector_A, vector_B, vector_out_2, N_ITER);
     auto merged = mergeSmall_k_cpu(vector_A, vector_B);
 
     std::cout << "Equality Erik     mergeLarge    : " << (merged == vector_out_0 ? "True " : "False ") << "T " << time_erik / N_ITER << " | Partition T " << time_partitioning_erik / N_ITER << std::endl;
-    std::cout << "Equality Squares  mergeLarge    : " << (merged == vector_out_2 ? "True " : "False ") << "T " << time_window / N_ITER << " | Partition T " << time_partitioning_window / N_ITER << std::endl;
-    std::cout << "Equality thrust   merge         : " << (merged == vector_out_3 ? "True " : "False ") << "T " << time_thrust << std::endl;
+    std::cout << "Equality Tiled  mergeLarge    : " << (merged == vector_out_1 ? "True " : "False ") << "T " << time_window / N_ITER << " | Partition T " << time_partitioning_window / N_ITER << std::endl;
+    std::cout << "Equality thrust   merge         : " << (merged == vector_out_2 ? "True " : "False ") << "T " << time_thrust << std::endl;
 
     cudaFree(v_A_B_gpu),
     cudaFree(v_out_gpu_0), 
-    cudaFree(v_out_gpu_1),
-    cudaFree(v_out_gpu_2);
+    cudaFree(v_out_gpu_1);
     cudaFree(v_Q_gpu);
 
     TIME_EVENT_DESTROY(timing_erik)
