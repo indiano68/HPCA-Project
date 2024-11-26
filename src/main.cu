@@ -40,8 +40,8 @@ int main(int argc, char **argv)
     /*
         Building vectors to sort 
     */
-    std::vector<v_type> vector_A = build_random_vector<v_type>(std::stoi(argv[1])/*, -1000, 1000*/);
-    std::vector<v_type> vector_B = build_random_vector<v_type>(std::stoi(argv[2])/*, -1000, 1000*/);
+    std::vector<v_type> vector_A = build_random_vector<v_type>(std::stoi(argv[1]), -1000, 1000);
+    std::vector<v_type> vector_B = build_random_vector<v_type>(std::stoi(argv[2]), -1000, 1000);
 
     /*
         Building buffers for that allow the varius benchmakred kernels 
@@ -153,9 +153,9 @@ int main(int argc, char **argv)
     cudaFree(v_out_gpu_1);
     cudaFree(v_Q_gpu);
 
-    TIME_EVENT_DESTROY(timing_erik)
-    TIME_EVENT_DESTROY(timing_window)
-    TIME_EVENT_DESTROY(timing_window)
+    TIME_EVENT_DESTROY(timing_erik);
+    TIME_EVENT_DESTROY(timing_window);
+    TIME_EVENT_DESTROY(timing_window);
 
     return EXIT_SUCCESS;
 }

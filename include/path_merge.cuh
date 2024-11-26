@@ -282,7 +282,6 @@ __global__ void merge_k_gpu_window(const T *A_ptr,
     {
       B_block[threadIdx.x + tiles * TILE_SIZE] = B_ptr[x_start + threadIdx.x + tiles * TILE_SIZE];
     }
-
     if constexpr(DEBUG) print_shared(A_block, B_block, base, height);
     __syncthreads();
   }
@@ -328,7 +327,7 @@ __global__ void merge_k_gpu_window(const T *A_ptr,
     int2 K, P;
 
     K.x = threadIdx.x <= tile_height ? 0 : threadIdx.x - tile_height;
-    K.y = threadIdx.x <= tile_height ? threadIdx.x :tile_height;
+    K.y = threadIdx.x <= tile_height ? threadIdx.x : tile_height;
 
     P.x = threadIdx.x <= tile_base ? threadIdx.x : tile_base;
     P.y = threadIdx.x <= tile_base ? 0 : threadIdx.x - tile_base;

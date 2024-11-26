@@ -63,7 +63,6 @@ __device__ __forceinline__ int2 block_bin_search_tiled(const T *A_local, const T
 
   while (true)
   {
-    //uint32_t offset = abs(K.y - P.y) / 2; don't need abs because we know that K.y > P.y
     uint32_t offset = (K.y - P.y) / 2;
     int2 Q = {K.x + (int)offset, K.y - (int)offset};
 
