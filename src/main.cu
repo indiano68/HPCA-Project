@@ -36,7 +36,6 @@ int main(int argc, char **argv)
     v_type *v_A_gpu, 
            *v_B_gpu,
            *v_A_B_gpu,
-           *v_buffer_gpu,
            *v_out_gpu_0, 
            *v_out_gpu_1,
            *v_out_gpu_2;
@@ -48,12 +47,6 @@ int main(int argc, char **argv)
     */
     std::vector<v_type> vector_A = build_random_vector<v_type>(std::stoi(argv[1]), -1000, 1000);
     std::vector<v_type> vector_B = build_random_vector<v_type>(std::stoi(argv[2]), -1000, 1000);
-
-    // std::vector<v_type> vector_A = {30, 50, 60, 80, 110};
-    // std::vector<v_type> vector_B = {10, 20, 40, 70, 90, 100, 120};
-
-    // std::vector<v_type> vector_A = {3,5,6,8,10};
-    // std::vector<v_type> vector_B = {19,21,41,71,91,101,121};
 
     /*
         Building buffers for that allow the varius benchmakred kernels 
@@ -67,12 +60,11 @@ int main(int argc, char **argv)
     std::vector<int2> vector_Q;
 
 
-    float time_0 = 0, time_1 = 0, time_2 = 0, time_3 = 0, time_partitioning_erik = 0, time_partitioning_squares = 0;
-    TIME_EVENT_DEFINE(timing_0);TIME_EVENT_CREATE(timing_0);
-    TIME_EVENT_DEFINE(timing_1);TIME_EVENT_CREATE(timing_1);
-    TIME_EVENT_DEFINE(timing_2);TIME_EVENT_CREATE(timing_2);
+    float time_erik = 0, time_window = 0, time_thrust = 0, time_partitioning_erik = 0, time_partitioning_window = 0;
+    TIME_EVENT_DEFINE(timing_erik);TIME_EVENT_CREATE(timing_erik);
+    TIME_EVENT_DEFINE(timing_window);TIME_EVENT_CREATE(timing_window);
     TIME_EVENT_DEFINE(timing_partitioning_erik);TIME_EVENT_CREATE(timing_partitioning_erik);
-    TIME_EVENT_DEFINE(timing_partitioning_squares);TIME_EVENT_CREATE(timing_partitioning_squares);
+    TIME_EVENT_DEFINE(timing_partitioning_window);TIME_EVENT_CREATE(timing_partitioning_window);
 
     if (vector_A.size() > vector_B.size())
     {
@@ -93,9 +85,7 @@ int main(int argc, char **argv)
 
     int block_num = (vector_out_size + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
     dim3 grid_window((vector_out_size + TILE_SIZE * TILES_PER_BLOCK - 1) / (TILE_SIZE * TILES_PER_BLOCK));
-    // block number for squares kernel is slightly different
-    // cudaMalloc(&v_A_gpu     , vector_sizeof(vector_A));
-    // cudaMalloc(&v_B_gpu     , vector_sizeof(vector_B));
+
     cudaMalloc(&v_A_B_gpu   , vector_sizeof(vector_A) + vector_sizeof(vector_B));
     v_A_gpu = v_A_B_gpu;
     v_B_gpu = v_A_B_gpu + vector_A.size();
@@ -114,111 +104,69 @@ int main(int argc, char **argv)
         Benchmarking of Erik's Kernel
     ########################################
     */
-    // emptyk<<<1, 1>>>();
-    // TIME_START(timing_0);TIME_START(timing_partitioning_erik);
-    // for (int i = 0; i < N_ITER; i++)
-    // {
-    //     partitioner<<<block_num, 1>>>(v_A_gpu, vector_A.size(),
-    //                                                   v_B_gpu, vector_B.size(),
-    //                                                   v_Q_gpu, block_num);
-
-    //     TIME_STOP_SAVE(timing_partitioning_erik, time_partitioning_erik);
-
-    //     merge_k_blocked<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
-    //                                                       v_B_gpu, vector_B.size(),
-    //                                                       v_out_gpu_0, vector_out_0.size(), v_Q_gpu);
-    // }
-    // TIME_STOP_SAVE(timing_0,time_0);
-
-    // cudaMemcpy(vector_out_0.data(), v_out_gpu_0, vector_sizeof(vector_out_0), cudaMemcpyDeviceToHost);
-    // cudaMemcpy(vector_Q.data(), v_Q_gpu, vector_sizeof(vector_Q), cudaMemcpyDeviceToHost);
-
-    // Padding for Triangles kernel
-    auto remainder = (vector_out_1.size()) % THREADS_PER_BLOCK;
-    size_t padding = (remainder == 0) ? 0 : THREADS_PER_BLOCK - remainder;
-    auto v_buffer = vector_B;
-    if (remainder != 0)
+    emptyk<<<1, 1>>>();
+    TIME_START(timing_erik);TIME_START(timing_partitioning_erik);
+    for (int i = 0; i < N_ITER; i++)
     {
-        auto biggest_element = std::max(vector_A.back(), vector_B.back());
-        v_buffer.resize(v_buffer.size() + padding, biggest_element);
+        partitioner<<<block_num, 1>>>(v_A_gpu, vector_A.size(),
+                                      v_B_gpu, vector_B.size(),
+                                      v_Q_gpu, block_num);
+
+        TIME_STOP_SAVE(timing_partitioning_erik, time_partitioning_erik);
+
+        merge_k_blocked<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
+                                                          v_B_gpu, vector_B.size(),
+                                                          v_out_gpu_0, vector_out_0.size(), v_Q_gpu);
     }
+    TIME_STOP_SAVE(timing_erik,time_erik);
 
-    cudaMalloc(&v_buffer_gpu, vector_sizeof(v_buffer));
-    cudaMemcpy(v_buffer_gpu, v_buffer.data(), vector_sizeof(v_buffer), cudaMemcpyHostToDevice);
-
-    /*
-    #######################################
-        Benchmarking of Triangles Kernel
-    ########################################
-    */
-    TIME_START(timing_1);
-    //emptyk<<<1, 1>>>();
-    // for (int i = 0; i < N_ITER; i++)
-    // {
-    //     merge_k_triangles<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
-    //                                                         v_buffer_gpu, v_buffer.size(),
-    //                                                         v_out_gpu_1);
-    // }
-    TIME_STOP_SAVE(timing_1,time_1)
-    cudaMemcpy(vector_out_1.data(), v_out_gpu_1, vector_sizeof(vector_out_1), cudaMemcpyDeviceToHost);
+    cudaMemcpy(vector_out_0.data(), v_out_gpu_0, vector_sizeof(vector_out_0), cudaMemcpyDeviceToHost);
+    cudaMemcpy(vector_Q.data(), v_Q_gpu, vector_sizeof(vector_Q), cudaMemcpyDeviceToHost);
     
     /*
     ########################################
-        Benchmarking of Squares Kernel
+        Benchmarking of Tiled Kernel
     ########################################
     */
-    //Partitioner computes his grid size from grid size of squares kernel
-    dim3 grid_partitioning_squares((block_num + THREADS_PER_BLOCK_PARTITIONER - 1) / THREADS_PER_BLOCK_PARTITIONER);
     dim3 grid_partitioning_window((grid_window.x + THREADS_PER_BLOCK_PARTITIONER - 1) / THREADS_PER_BLOCK_PARTITIONER);
     emptyk<<<1, 1>>>();
-    TIME_START(timing_2);TIME_START(timing_partitioning_squares);
+    TIME_START(timing_window);TIME_START(timing_partitioning_window);
     for (int i = 0; i < N_ITER; i++)
     {        
 
-        // partition_k_gpu_packed<<<grid_partitioning_squares, THREADS_PER_BLOCK_PARTITIONER>>>(v_A_gpu, vector_A.size(),
-        //                                                                                      v_B_gpu, vector_B.size(),
-        //                                                                                      v_Q_gpu);
-
-        // TIME_STOP_SAVE(timing_partitioning_squares, time_partitioning_squares);
-
-        // merge_k_gpu_squares<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
-        //                                                  v_B_gpu, vector_B.size(),
-        //                                                  v_out_gpu_2, v_Q_gpu);
-
-        partition_k_gpu_packed_window<<<grid_partitioning_window, THREADS_PER_BLOCK_PARTITIONER>>>(v_A_gpu, vector_A.size(),
-                                                                                                   v_B_gpu, vector_B.size(),
-                                                                                                   v_Q_gpu_window);
-        TIME_STOP_SAVE(timing_partitioning_squares, time_partitioning_squares);
+        partition_k_gpu_packed<<<grid_partitioning_window, THREADS_PER_BLOCK_PARTITIONER>>>(v_A_gpu, vector_A.size(),
+                                                                                            v_B_gpu, vector_B.size(),
+                                                                                            v_Q_gpu_window);
+        TIME_STOP_SAVE(timing_partitioning_window, time_partitioning_window);
 
         merge_k_gpu_window<<<grid_window, TILE_SIZE>>>(v_A_gpu, vector_A.size(),
-                                                                v_B_gpu, vector_B.size(),
-                                                                v_out_gpu_2, v_Q_gpu_window);
+                                                       v_B_gpu, vector_B.size(),
+                                                       v_out_gpu_2, v_Q_gpu_window);
 
 
     }
-    TIME_STOP_SAVE(timing_2,time_2);
+    TIME_STOP_SAVE(timing_window,time_window);
 
     cudaMemcpy(vector_out_2.data(), v_out_gpu_2, vector_sizeof(vector_out_2), cudaMemcpyDeviceToHost);
 
     if constexpr(DEBUG) print_vector(vector_out_2);
 
-    time_3 = bench_thrust_merge(vector_A, vector_B, vector_out_3, N_ITER);
+    time_thrust = bench_thrust_merge(vector_A, vector_B, vector_out_3, N_ITER);
     auto merged = mergeSmall_k_cpu(vector_A, vector_B);
 
-    std::cout << "Equality Erik     mergeLarge    : " << (merged == vector_out_0 ? "True " : "False ") << "T " << time_0 / N_ITER << " | Partition T " << time_partitioning_erik / N_ITER << std::endl;
-    std::cout << "Equality Triangle mergeLarge    : " << (merged == vector_out_1 ? "True " : "False ") << "T " << time_1 / N_ITER << std::endl;
-    std::cout << "Equality Squares  mergeLarge    : " << (merged == vector_out_2 ? "True " : "False ") << "T " << time_2 / N_ITER << " | Partition T " << time_partitioning_squares / N_ITER << std::endl;
-    std::cout << "Equality thrust   merge         : " << (merged == vector_out_3 ? "True " : "False ") << "T " << time_3 << std::endl;
-    // cudaFree(v_A_gpu), cudaFree(v_B_gpu),
+    std::cout << "Equality Erik     mergeLarge    : " << (merged == vector_out_0 ? "True " : "False ") << "T " << time_erik / N_ITER << " | Partition T " << time_partitioning_erik / N_ITER << std::endl;
+    std::cout << "Equality Squares  mergeLarge    : " << (merged == vector_out_2 ? "True " : "False ") << "T " << time_window / N_ITER << " | Partition T " << time_partitioning_window / N_ITER << std::endl;
+    std::cout << "Equality thrust   merge         : " << (merged == vector_out_3 ? "True " : "False ") << "T " << time_thrust << std::endl;
+
     cudaFree(v_A_B_gpu),
-    cudaFree(v_buffer_gpu),
     cudaFree(v_out_gpu_0), 
     cudaFree(v_out_gpu_1),
     cudaFree(v_out_gpu_2);
     cudaFree(v_Q_gpu);
-    TIME_EVENT_DESTROY(timing_0)
-    TIME_EVENT_DESTROY(timing_1)
-    TIME_EVENT_DESTROY(timing_2)
+
+    TIME_EVENT_DESTROY(timing_erik)
+    TIME_EVENT_DESTROY(timing_window)
+    TIME_EVENT_DESTROY(timing_window)
 
     return EXIT_SUCCESS;
 }
