@@ -1,18 +1,18 @@
-void thrust::cuda_cub::core::_kernel_agent<thrust::cuda_cub::__merge::PartitionAgent<thrust::detail::normal_iterator<thrust::device_ptr<int>>, thrust::detail::normal_iterator<thrust::device_ptr<int>>, long, thrust::less<int>>, thrust::detail::normal_iterator<thrust::device_ptr<int>>, thrust::detail::normal_iterator<thrust::device_ptr<int>>, long, long, long, long *, thrust::less<int>, int>(T2, T3, T4, T5, T6, T7, T8, T9) (587, 1, 1)x(256, 1, 1), Context 1, Stream 7, Device 0, CC 8.0
+  void thrust::cuda_cub::core::_kernel_agent<thrust::cuda_cub::__merge::PartitionAgent<thrust::detail::normal_iterator<thrust::device_ptr<int>>, thrust::detail::normal_iterator<thrust::device_ptr<int>>, long, thrust::less<int>>, thrust::detail::normal_iterator<thrust::device_ptr<int>>, thrust::detail::normal_iterator<thrust::device_ptr<int>>, long, long, long, long *, thrust::less<int>, int>(T2, T3, T4, T5, T6, T7, T8, T9) (587, 1, 1)x(256, 1, 1), Context 1, Stream 7, Device 0, CC 8.0
     Section: GPU Speed Of Light Throughput
     ----------------------- ------------- ------------
     Metric Name               Metric Unit Metric Value
     ----------------------- ------------- ------------
     DRAM Frequency          cycle/nsecond         1.21
     SM Frequency            cycle/nsecond         1.09
-    Elapsed Cycles                  cycle      503,906
-    Memory Throughput                   %        56.38
-    DRAM Throughput                     %        56.38
-    Duration                      usecond       460.26
-    L1/TEX Cache Throughput             %        13.06
-    L2 Cache Throughput                 %        63.31
-    SM Active Cycles                cycle   476,836.48
-    Compute (SM) Throughput             %         2.25
+    Elapsed Cycles                  cycle      621,324
+    Memory Throughput                   %        55.00
+    DRAM Throughput                     %        55.00
+    Duration                      usecond       567.49
+    L1/TEX Cache Throughput             %        12.64
+    L2 Cache Throughput                 %        63.22
+    SM Active Cycles                cycle   599,727.44
+    Compute (SM) Throughput             %         1.83
     ----------------------- ------------- ------------
 
     OPT   This kernel grid is too small to fill the available resources on this device, resulting in only 0.7 full      
@@ -38,14 +38,14 @@ void thrust::cuda_cub::core::_kernel_agent<thrust::cuda_cub::__merge::PartitionA
     -------------------- ----------- ------------
     Metric Name          Metric Unit Metric Value
     -------------------- ----------- ------------
-    Executed Ipc Active   inst/cycle         0.06
-    Executed Ipc Elapsed  inst/cycle         0.06
-    Issue Slots Busy               %         1.65
-    Issued Ipc Active     inst/cycle         0.07
-    SM Busy                        %         2.38
+    Executed Ipc Active   inst/cycle         0.05
+    Executed Ipc Elapsed  inst/cycle         0.05
+    Issue Slots Busy               %         1.31
+    Issued Ipc Active     inst/cycle         0.05
+    SM Busy                        %         1.89
     -------------------- ----------- ------------
 
-    OPT   Est. Local Speedup: 97.62%                                                                                    
+    OPT   Est. Local Speedup: 98.11%                                                                                    
           All compute pipelines are under-utilized. Either this kernel is very small or it doesn't issue enough warps   
           per scheduler. Check the Launch Statistics and Scheduler Statistics sections for further details.             
 
@@ -53,24 +53,24 @@ void thrust::cuda_cub::core::_kernel_agent<thrust::cuda_cub::__merge::PartitionA
     --------------------------- ------------ ------------
     Metric Name                  Metric Unit Metric Value
     --------------------------- ------------ ------------
-    Memory Throughput           Gbyte/second       876.82
-    Mem Busy                               %        52.09
-    Max Bandwidth                          %        56.38
-    L1/TEX Hit Rate                        %         5.56
+    Memory Throughput           Gbyte/second       855.23
+    Mem Busy                               %        50.38
+    Max Bandwidth                          %        55.00
+    L1/TEX Hit Rate                        %         1.44
     L2 Compression Success Rate            %            0
     L2 Compression Ratio                                0
-    L2 Hit Rate                            %        44.99
-    Mem Pipes Busy                         %         0.50
+    L2 Hit Rate                            %        44.98
+    Mem Pipes Busy                         %         0.40
     --------------------------- ------------ ------------
 
     Section: Memory Workload Analysis Tables
-    OPT   Est. Speedup: 51.9%                                                                                           
-          The memory access pattern for global loads from L2 might not be optimal. On average, only 4.2 of the 32 bytes 
-          transmitted per sector are utilized by each thread. This applies to the 94.4% of sectors missed in L1TEX.     
+    OPT   Est. Speedup: 54.53%                                                                                          
+          The memory access pattern for global loads from L2 might not be optimal. On average, only 4.0 of the 32 bytes 
+          transmitted per sector are utilized by each thread. This applies to the 98.6% of sectors missed in L1TEX.     
           This could possibly be caused by a stride between threads. Check the Source Counters section for uncoalesced  
           global loads.                                                                                                 
     ----- --------------------------------------------------------------------------------------------------------------
-    OPT   Est. Speedup: 0.0008427%                                                                                      
+    OPT   Est. Speedup: 0.0008416%                                                                                      
           The memory access pattern for global stores to L2 might not be optimal. On average, only 32.0 of the 32 bytes 
           transmitted per sector are utilized by each thread. This applies to the 100.0% of sectors missed in L1TEX.    
           This could possibly be caused by a stride between threads. Check the Source Counters section for uncoalesced  
@@ -80,18 +80,18 @@ void thrust::cuda_cub::core::_kernel_agent<thrust::cuda_cub::__merge::PartitionA
     ---------------------------- ----------- ------------
     Metric Name                  Metric Unit Metric Value
     ---------------------------- ----------- ------------
-    One or More Eligible                   %         1.66
-    Issued Warp Per Scheduler                        0.02
-    No Eligible                            %        98.34
-    Active Warps Per Scheduler          warp        10.81
+    One or More Eligible                   %         1.33
+    Issued Warp Per Scheduler                        0.01
+    No Eligible                            %        98.67
+    Active Warps Per Scheduler          warp        10.72
     Eligible Warps Per Scheduler        warp         0.02
     ---------------------------- ----------- ------------
 
-    OPT   Est. Local Speedup: 43.62%                                                                                    
+    OPT   Est. Local Speedup: 45%                                                                                       
           Every scheduler is capable of issuing one instruction per cycle, but for this kernel each scheduler only      
-          issues an instruction every 60.3 cycles. This might leave hardware resources underutilized and may lead to    
+          issues an instruction every 75.4 cycles. This might leave hardware resources underutilized and may lead to    
           less optimal performance. Out of the maximum of 16 warps per scheduler, this kernel allocates an average of   
-          10.81 active warps per scheduler, but only an average of 0.02 warps were eligible per cycle. Eligible warps   
+          10.72 active warps per scheduler, but only an average of 0.02 warps were eligible per cycle. Eligible warps   
           are the subset of active warps that are ready to issue their next instruction. Every cycle with no eligible   
           warp results in no instruction being issued and the issue slot remains unused. To increase the number of      
           eligible warps, reduce the time the active warps are stalled by inspecting the top stall reasons on the Warp  
@@ -101,19 +101,19 @@ void thrust::cuda_cub::core::_kernel_agent<thrust::cuda_cub::__merge::PartitionA
     ---------------------------------------- ----------- ------------
     Metric Name                              Metric Unit Metric Value
     ---------------------------------------- ----------- ------------
-    Warp Cycles Per Issued Instruction             cycle       651.57
-    Warp Cycles Per Executed Instruction           cycle       660.08
+    Warp Cycles Per Issued Instruction             cycle       808.21
+    Warp Cycles Per Executed Instruction           cycle       818.71
     Avg. Active Threads Per Warp                                31.53
     Avg. Not Predicated Off Threads Per Warp                    31.39
     ---------------------------------------- ----------- ------------
 
-    OPT   Est. Speedup: 43.62%                                                                                          
-          On average, each warp of this kernel spends 573.0 cycles being stalled waiting for a scoreboard dependency on 
+    OPT   Est. Speedup: 45%                                                                                             
+          On average, each warp of this kernel spends 713.5 cycles being stalled waiting for a scoreboard dependency on 
           a L1TEX (local, global, surface, texture) operation. Find the instruction producing the data being waited     
           upon to identify the culprit. To reduce the number of cycles waiting on L1TEX data accesses verify the        
           memory access patterns are optimal for the target architecture, attempt to increase cache hit rates by        
           increasing data locality (coalescing), or by changing the cache configuration. Consider moving frequently     
-          used data to shared memory. This stall type represents about 87.9% of the total average of 651.6 cycles       
+          used data to shared memory. This stall type represents about 88.3% of the total average of 808.2 cycles       
           between issuing two instructions.                                                                             
     ----- --------------------------------------------------------------------------------------------------------------
     INF   Check the Warp Stall Sampling (All Samples) table for the top stall locations in your source based on         
@@ -125,10 +125,10 @@ void thrust::cuda_cub::core::_kernel_agent<thrust::cuda_cub::__merge::PartitionA
     ---------------------------------------- ----------- ------------
     Metric Name                              Metric Unit Metric Value
     ---------------------------------------- ----------- ------------
-    Avg. Executed Instructions Per Scheduler        inst     7,747.49
-    Executed Instructions                           inst    3,346,914
-    Avg. Issued Instructions Per Scheduler          inst     7,848.67
-    Issued Instructions                             inst    3,390,624
+    Avg. Executed Instructions Per Scheduler        inst     7,747.88
+    Executed Instructions                           inst    3,347,084
+    Avg. Issued Instructions Per Scheduler          inst     7,848.57
+    Issued Instructions                             inst    3,390,582
     ---------------------------------------- ----------- ------------
 
     Section: Launch Statistics
@@ -159,12 +159,12 @@ void thrust::cuda_cub::core::_kernel_agent<thrust::cuda_cub::__merge::PartitionA
     Block Limit Warps                     block            8
     Theoretical Active Warps per SM        warp           64
     Theoretical Occupancy                     %          100
-    Achieved Occupancy                        %        67.03
-    Achieved Active Warps Per SM           warp        42.90
+    Achieved Occupancy                        %        66.11
+    Achieved Active Warps Per SM           warp        42.31
     ------------------------------- ----------- ------------
 
-    OPT   Est. Speedup: 32.97%                                                                                          
-          The difference between calculated theoretical (100.0%) and measured achieved occupancy (67.0%) can be the     
+    OPT   Est. Speedup: 33.89%                                                                                          
+          The difference between calculated theoretical (100.0%) and measured achieved occupancy (66.1%) can be the     
           result of warp scheduling overheads or workload imbalances during the kernel execution. Load imbalances can   
           occur between warps within a block as well as across blocks of the same kernel. See the CUDA Best Practices   
           Guide (https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#occupancy) for more details on     
@@ -174,16 +174,16 @@ void thrust::cuda_cub::core::_kernel_agent<thrust::cuda_cub::__merge::PartitionA
     -------------------------- ----------- ------------
     Metric Name                Metric Unit Metric Value
     -------------------------- ----------- ------------
-    Average DRAM Active Cycles       cycle   315,283.80
-    Total DRAM Elapsed Cycles        cycle   22,367,744
-    Average L1 Active Cycles         cycle   476,836.48
-    Total L1 Elapsed Cycles          cycle   54,418,602
-    Average L2 Active Cycles         cycle   472,697.15
-    Total L2 Elapsed Cycles          cycle   38,660,720
-    Average SM Active Cycles         cycle   476,836.48
-    Total SM Elapsed Cycles          cycle   54,418,602
-    Average SMSP Active Cycles       cycle   472,975.49
-    Total SMSP Elapsed Cycles        cycle  217,674,408
+    Average DRAM Active Cycles       cycle      379,167
+    Total DRAM Elapsed Cycles        cycle   27,576,832
+    Average L1 Active Cycles         cycle   599,727.44
+    Total L1 Elapsed Cycles          cycle   67,100,560
+    Average L2 Active Cycles         cycle   584,565.91
+    Total L2 Elapsed Cycles          cycle   47,660,800
+    Average SM Active Cycles         cycle   599,727.44
+    Total SM Elapsed Cycles          cycle   67,100,560
+    Average SMSP Active Cycles       cycle   591,908.78
+    Total SMSP Elapsed Cycles        cycle  268,402,240
     -------------------------- ----------- ------------
 
     Section: Source Counters
@@ -191,16 +191,15 @@ void thrust::cuda_cub::core::_kernel_agent<thrust::cuda_cub::__merge::PartitionA
     Metric Name               Metric Unit Metric Value
     ------------------------- ----------- ------------
     Branch Instructions Ratio           %         0.05
-    Branch Instructions              inst      154,316
+    Branch Instructions              inst      154,325
     Branch Efficiency                   %        96.70
     Avg. Divergent Branches                      10.38
     ------------------------- ----------- ------------
 
-    OPT   Est. Speedup: 83.75%                                                                                          
-          This kernel has uncoalesced global accesses resulting in a total of 6349344 excessive sectors (86% of the     
-          total 7415426 sectors). Check the L2 Theoretical Sectors Global Excessive table for the primary source        
+    OPT   Est. Speedup: 85.42%                                                                                          
+          This kernel has uncoalesced global accesses resulting in a total of 7230070 excessive sectors (87% of the     
+          total 8305107 sectors). Check the L2 Theoretical Sectors Global Excessive table for the primary source        
           locations. The CUDA Programming Guide                                                                         
           (https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#device-memory-accesses) has additional      
           information on reducing uncoalesced device memory accesses.                                                   
 
- 

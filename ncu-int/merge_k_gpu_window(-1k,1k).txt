@@ -1,4 +1,4 @@
-==PROF== Connected to process 2256285 (/ceph/hpc/home/student3/HPCA/HPCA-Project/build/executable_cuda)
+==PROF== Connected to process 631327 (/ceph/hpc/home/student3/HPCA/HPCA-Project/build/executable_cuda)
 ==PROF== Profiling "merge_k_gpu_window": 0%
 ==WARNING== Backing up device memory in system memory. Kernel replay might be slow. Consider using "--replay-mode application" to avoid memory save-and-restore.
 ....50%....100% - 47 passes
@@ -15,12 +15,11 @@ Device Number: 0
   Concurrent kernels: yes
   Concurrent computation/communication: yes
 
-Equality Erik     mergeLarge    : False T 0 | Partition T 0
-Equality Triangle mergeLarge    : False T 0.004992
-Equality Squares  mergeLarge    : True T 12080.7 | Partition T 0.862208
-Equality thrust   merge         : True T 6.7113
-==PROF== Disconnected from process 2256285
-[2256285] executable_cuda@127.0.0.1
+Equality Erik     mergeLarge    : True T 22.3222 | Partition T 9.78842
+Equality Tiled  mergeLarge    : True T 9482.54 | Partition T 0.919552
+Equality thrust   merge         : True T 6.79219
+==PROF== Disconnected from process 631327
+[631327] executable_cuda@127.0.0.1
   void merge_k_gpu_window<int>(const T1 *, unsigned long, const T1 *, unsigned long, T1 *, const int2 *) (162761, 1, 1)x(512, 1, 1), Context 1, Stream 7, Device 0, CC 8.0
     Section: GPU Speed Of Light Throughput
     ----------------------- ------------- ------------
@@ -28,14 +27,14 @@ Equality thrust   merge         : True T 6.7113
     ----------------------- ------------- ------------
     DRAM Frequency          cycle/nsecond         1.21
     SM Frequency            cycle/nsecond         1.09
-    Elapsed Cycles                  cycle    6,486,408
-    Memory Throughput                   %        86.69
-    DRAM Throughput                     %        86.69
+    Elapsed Cycles                  cycle    6,487,393
+    Memory Throughput                   %        86.68
+    DRAM Throughput                     %        86.68
     Duration                      msecond         5.92
-    L1/TEX Cache Throughput             %        33.89
-    L2 Cache Throughput                 %        69.60
-    SM Active Cycles                cycle 6,464,779.19
-    Compute (SM) Throughput             %        73.97
+    L1/TEX Cache Throughput             %        33.87
+    L2 Cache Throughput                 %        69.62
+    SM Active Cycles                cycle 6,463,971.64
+    Compute (SM) Throughput             %        73.92
     ----------------------- ------------- ------------
 
     INF   The kernel is utilizing greater than 80.0% of the available compute or memory performance of the device. To   
@@ -64,9 +63,9 @@ Equality thrust   merge         : True T 6.7113
     -------------------- ----------- ------------
     Executed Ipc Active   inst/cycle         2.97
     Executed Ipc Elapsed  inst/cycle         2.96
-    Issue Slots Busy               %        74.21
+    Issue Slots Busy               %        74.19
     Issued Ipc Active     inst/cycle         2.97
-    SM Busy                        %        74.21
+    SM Busy                        %        74.19
     -------------------- ----------- ------------
 
     INF   ALU is the highest-utilized pipeline (53.3%) based on active cycles, taking into account the rates of its     
@@ -78,23 +77,23 @@ Equality thrust   merge         : True T 6.7113
     Metric Name                  Metric Unit Metric Value
     --------------------------- ------------ ------------
     Memory Throughput           Tbyte/second         1.35
-    Mem Busy                               %        34.56
-    Max Bandwidth                          %        86.69
-    L1/TEX Hit Rate                        %        11.87
+    Mem Busy                               %        34.55
+    Max Bandwidth                          %        86.68
+    L1/TEX Hit Rate                        %        11.84
     L2 Compression Success Rate            %            0
     L2 Compression Ratio                                0
-    L2 Hit Rate                            %        65.35
-    Mem Pipes Busy                         %        30.01
+    L2 Hit Rate                            %        65.30
+    Mem Pipes Busy                         %        29.98
     --------------------------- ------------ ------------
 
     Section: Memory Workload Analysis Tables
-    OPT   Est. Speedup: 12.46%                                                                                          
+    OPT   Est. Speedup: 12.43%                                                                                          
           The memory access pattern for global loads from DRAM might not be optimal. On average, only 25.6 of the 32    
           bytes transmitted per sector are utilized by each thread. This applies to the 92.3% of sectors missed in L2.  
           This could possibly be caused by a stride between threads. Check the Source Counters section for uncoalesced  
           global loads.                                                                                                 
     ----- --------------------------------------------------------------------------------------------------------------
-    OPT   Est. Speedup: 0.001956%                                                                                       
+    OPT   Est. Speedup: 0.001952%                                                                                       
           The memory access pattern for global stores to L2 might not be optimal. On average, only 32.0 of the 32 bytes 
           transmitted per sector are utilized by each thread. This applies to the 100.0% of sectors missed in L1TEX.    
           This could possibly be caused by a stride between threads. Check the Source Counters section for uncoalesced  
@@ -104,9 +103,9 @@ Equality thrust   merge         : True T 6.7113
     ---------------------------- ----------- ------------
     Metric Name                  Metric Unit Metric Value
     ---------------------------- ----------- ------------
-    One or More Eligible                   %        74.24
+    One or More Eligible                   %        74.21
     Issued Warp Per Scheduler                        0.74
-    No Eligible                            %        25.76
+    No Eligible                            %        25.79
     Active Warps Per Scheduler          warp        15.73
     Eligible Warps Per Scheduler        warp         3.23
     ---------------------------- ----------- ------------
@@ -115,14 +114,14 @@ Equality thrust   merge         : True T 6.7113
     ---------------------------------------- ----------- ------------
     Metric Name                              Metric Unit Metric Value
     ---------------------------------------- ----------- ------------
-    Warp Cycles Per Issued Instruction             cycle        21.19
-    Warp Cycles Per Executed Instruction           cycle        21.19
+    Warp Cycles Per Issued Instruction             cycle        21.20
+    Warp Cycles Per Executed Instruction           cycle        21.20
     Avg. Active Threads Per Warp                                31.95
     Avg. Not Predicated Off Threads Per Warp                    30.08
     ---------------------------------------- ----------- ------------
 
-    OPT   Est. Local Speedup: 39.35%                                                                                    
-          On average, each warp of this kernel spends 8.3 cycles being stalled waiting for a scoreboard dependency on a 
+    OPT   Est. Local Speedup: 39.42%                                                                                    
+          On average, each warp of this kernel spends 8.4 cycles being stalled waiting for a scoreboard dependency on a 
           L1TEX (local, global, surface, texture) operation. Find the instruction producing the data being waited upon  
           to identify the culprit. To reduce the number of cycles waiting on L1TEX data accesses verify the memory      
           access patterns are optimal for the target architecture, attempt to increase cache hit rates by increasing    
@@ -139,10 +138,10 @@ Equality thrust   merge         : True T 6.7113
     ---------------------------------------- ----------- -------------
     Metric Name                              Metric Unit  Metric Value
     ---------------------------------------- ----------- -------------
-    Avg. Executed Instructions Per Scheduler        inst  4,797,038.84
-    Executed Instructions                           inst 2,072,320,777
-    Avg. Issued Instructions Per Scheduler          inst  4,797,586.47
-    Issued Instructions                             inst 2,072,557,353
+    Avg. Executed Instructions Per Scheduler        inst  4,795,075.16
+    Executed Instructions                           inst 2,071,472,467
+    Avg. Issued Instructions Per Scheduler          inst  4,795,612.41
+    Issued Instructions                             inst 2,071,704,560
     ---------------------------------------- ----------- -------------
 
     Section: Launch Statistics
@@ -173,24 +172,24 @@ Equality thrust   merge         : True T 6.7113
     Block Limit Warps                     block            4
     Theoretical Active Warps per SM        warp           64
     Theoretical Occupancy                     %          100
-    Achieved Occupancy                        %        98.40
-    Achieved Active Warps Per SM           warp        62.98
+    Achieved Occupancy                        %        98.42
+    Achieved Active Warps Per SM           warp        62.99
     ------------------------------- ----------- ------------
 
     Section: GPU and Memory Workload Distribution
     -------------------------- ----------- -------------
     Metric Name                Metric Unit  Metric Value
     -------------------------- ----------- -------------
-    Average DRAM Active Cycles       cycle  6,239,440.10
-    Total DRAM Elapsed Cycles        cycle   287,896,064
-    Average L1 Active Cycles         cycle  6,464,779.19
-    Total L1 Elapsed Cycles          cycle   700,497,770
-    Average L2 Active Cycles         cycle  6,201,091.26
-    Total L2 Elapsed Cycles          cycle   497,593,840
-    Average SM Active Cycles         cycle  6,464,779.19
-    Total SM Elapsed Cycles          cycle   700,497,770
-    Average SMSP Active Cycles       cycle  6,462,410.87
-    Total SMSP Elapsed Cycles        cycle 2,801,991,080
+    Average DRAM Active Cycles       cycle  6,239,336.90
+    Total DRAM Elapsed Cycles        cycle   287,935,488
+    Average L1 Active Cycles         cycle  6,463,971.64
+    Total L1 Elapsed Cycles          cycle   700,618,876
+    Average L2 Active Cycles         cycle  6,201,351.84
+    Total L2 Elapsed Cycles          cycle   497,657,280
+    Average SM Active Cycles         cycle  6,463,971.64
+    Total SM Elapsed Cycles          cycle   700,618,876
+    Average SMSP Active Cycles       cycle  6,462,448.32
+    Total SMSP Elapsed Cycles        cycle 2,802,475,504
     -------------------------- ----------- -------------
 
     Section: Source Counters
@@ -198,14 +197,14 @@ Equality thrust   merge         : True T 6.7113
     Metric Name               Metric Unit Metric Value
     ------------------------- ----------- ------------
     Branch Instructions Ratio           %         0.18
-    Branch Instructions              inst  371,364,782
+    Branch Instructions              inst  371,198,589
     Branch Efficiency                   %        99.89
-    Avg. Divergent Branches                     557.69
+    Avg. Divergent Branches                     552.66
     ------------------------- ----------- ------------
 
-    OPT   Est. Speedup: 9.72%                                                                                           
-          This kernel has uncoalesced global accesses resulting in a total of 27570137 excessive sectors (10% of the    
-          total 282785501 sectors). Check the L2 Theoretical Sectors Global Excessive table for the primary source      
+    OPT   Est. Speedup: 9.686%                                                                                          
+          This kernel has uncoalesced global accesses resulting in a total of 27466649 excessive sectors (10% of the    
+          total 282681995 sectors). Check the L2 Theoretical Sectors Global Excessive table for the primary source      
           locations. The CUDA Programming Guide                                                                         
           (https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#device-memory-accesses) has additional      
           information on reducing uncoalesced device memory accesses.                                                   
