@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <chrono>
 #include <path_merge.cuh>
+#include <partition.cuh>
 #include <wrapper.cuh>
 #include <thrust_merge.cuh>
 
@@ -48,6 +49,12 @@ int main(int argc, char **argv)
     std::vector<v_type> vector_A = build_random_vector<v_type>(std::stoi(argv[1]), -1000, 1000);
     std::vector<v_type> vector_B = build_random_vector<v_type>(std::stoi(argv[2]), -1000, 1000);
 
+    // std::vector<v_type> vector_A = {30, 50, 60, 80, 110};
+    // std::vector<v_type> vector_B = {10, 20, 40, 70, 90, 100, 120};
+
+    // std::vector<v_type> vector_A = {3,5,6,8,10};
+    // std::vector<v_type> vector_B = {19,21,41,71,91,101,121};
+
     /*
         Building buffers for that allow the varius benchmakred kernels 
         to store their output
@@ -85,7 +92,7 @@ int main(int argc, char **argv)
     }
 
     int block_num = (vector_out_size + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
-    dim3 grid_window((vector_out_size + THREADS_PER_WINDOW - 1) / THREADS_PER_WINDOW);
+    dim3 grid_window((vector_out_size + TILE_SIZE * TILES_PER_BLOCK - 1) / (TILE_SIZE * TILES_PER_BLOCK));
     // block number for squares kernel is slightly different
     // cudaMalloc(&v_A_gpu     , vector_sizeof(vector_A));
     // cudaMalloc(&v_B_gpu     , vector_sizeof(vector_B));
@@ -96,7 +103,7 @@ int main(int argc, char **argv)
     cudaMalloc(&v_out_gpu_1 , vector_sizeof(vector_out_1));
     cudaMalloc(&v_out_gpu_2 , vector_sizeof(vector_out_2));
     cudaMalloc(&v_Q_gpu     , (block_num) * sizeof(int2));
-    cudaMalloc(&v_Q_gpu_window, THREADS_PER_WINDOW * WINDOWS_PER_BLOCK * sizeof(int2));
+    cudaMalloc(&v_Q_gpu_window, grid_window.x * sizeof(int2));
 
     vector_Q.resize(block_num);
     cudaMemcpy(v_A_gpu, vector_A.data(), vector_sizeof(vector_A), cudaMemcpyHostToDevice);
@@ -107,24 +114,24 @@ int main(int argc, char **argv)
         Benchmarking of Erik's Kernel
     ########################################
     */
-    emptyk<<<1, 1>>>();
-    TIME_START(timing_0);TIME_START(timing_partitioning_erik);
-    for (int i = 0; i < N_ITER; i++)
-    {
-        partitioner<<<block_num, 1>>>(v_A_gpu, vector_A.size(),
-                                                      v_B_gpu, vector_B.size(),
-                                                      v_Q_gpu, block_num);
+    // emptyk<<<1, 1>>>();
+    // TIME_START(timing_0);TIME_START(timing_partitioning_erik);
+    // for (int i = 0; i < N_ITER; i++)
+    // {
+    //     partitioner<<<block_num, 1>>>(v_A_gpu, vector_A.size(),
+    //                                                   v_B_gpu, vector_B.size(),
+    //                                                   v_Q_gpu, block_num);
 
-        TIME_STOP_SAVE(timing_partitioning_erik, time_partitioning_erik);
+    //     TIME_STOP_SAVE(timing_partitioning_erik, time_partitioning_erik);
 
-        merge_k_blocked<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
-                                                          v_B_gpu, vector_B.size(),
-                                                          v_out_gpu_0, vector_out_0.size(), v_Q_gpu);
-    }
-    TIME_STOP_SAVE(timing_0,time_0);
+    //     merge_k_blocked<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
+    //                                                       v_B_gpu, vector_B.size(),
+    //                                                       v_out_gpu_0, vector_out_0.size(), v_Q_gpu);
+    // }
+    // TIME_STOP_SAVE(timing_0,time_0);
 
-    cudaMemcpy(vector_out_0.data(), v_out_gpu_0, vector_sizeof(vector_out_0), cudaMemcpyDeviceToHost);
-    cudaMemcpy(vector_Q.data(), v_Q_gpu, vector_sizeof(vector_Q), cudaMemcpyDeviceToHost);
+    // cudaMemcpy(vector_out_0.data(), v_out_gpu_0, vector_sizeof(vector_out_0), cudaMemcpyDeviceToHost);
+    // cudaMemcpy(vector_Q.data(), v_Q_gpu, vector_sizeof(vector_Q), cudaMemcpyDeviceToHost);
 
     // Padding for Triangles kernel
     auto remainder = (vector_out_1.size()) % THREADS_PER_BLOCK;
@@ -162,29 +169,38 @@ int main(int argc, char **argv)
     */
     //Partitioner computes his grid size from grid size of squares kernel
     dim3 grid_partitioning_squares((block_num + THREADS_PER_BLOCK_PARTITIONER - 1) / THREADS_PER_BLOCK_PARTITIONER);
+    dim3 grid_partitioning_window((grid_window.x + THREADS_PER_BLOCK_PARTITIONER - 1) / THREADS_PER_BLOCK_PARTITIONER);
     emptyk<<<1, 1>>>();
     TIME_START(timing_2);TIME_START(timing_partitioning_squares);
     for (int i = 0; i < N_ITER; i++)
     {        
 
-        partition_k_gpu_packed<<<grid_partitioning_squares, THREADS_PER_BLOCK_PARTITIONER>>>(v_A_gpu, vector_A.size(),
-                                                                                             v_B_gpu, vector_B.size(),
-                                                                                             v_Q_gpu);
+        // partition_k_gpu_packed<<<grid_partitioning_squares, THREADS_PER_BLOCK_PARTITIONER>>>(v_A_gpu, vector_A.size(),
+        //                                                                                      v_B_gpu, vector_B.size(),
+        //                                                                                      v_Q_gpu);
 
+        // TIME_STOP_SAVE(timing_partitioning_squares, time_partitioning_squares);
+
+        // merge_k_gpu_squares<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
+        //                                                  v_B_gpu, vector_B.size(),
+        //                                                  v_out_gpu_2, v_Q_gpu);
+
+        partition_k_gpu_packed_window<<<grid_partitioning_window, THREADS_PER_BLOCK_PARTITIONER>>>(v_A_gpu, vector_A.size(),
+                                                                                                   v_B_gpu, vector_B.size(),
+                                                                                                   v_Q_gpu_window);
         TIME_STOP_SAVE(timing_partitioning_squares, time_partitioning_squares);
 
-        merge_k_gpu_squares<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
-                                                         v_B_gpu, vector_B.size(),
-                                                         v_out_gpu_2, v_Q_gpu);
+        merge_k_gpu_window<<<grid_window, TILE_SIZE>>>(v_A_gpu, vector_A.size(),
+                                                                v_B_gpu, vector_B.size(),
+                                                                v_out_gpu_2, v_Q_gpu_window);
 
-        // merge_k_gpu_window<<<block_num, THREADS_PER_BLOCK>>>(v_A_gpu, vector_A.size(),
-        //                                                      v_B_gpu, vector_B.size(),
-        //                                                      v_out_gpu_2, v_Q_gpu);
 
     }
     TIME_STOP_SAVE(timing_2,time_2);
 
     cudaMemcpy(vector_out_2.data(), v_out_gpu_2, vector_sizeof(vector_out_2), cudaMemcpyDeviceToHost);
+
+    if constexpr(DEBUG) print_vector(vector_out_2);
 
     time_3 = bench_thrust_merge(vector_A, vector_B, vector_out_3, N_ITER);
     auto merged = mergeSmall_k_cpu(vector_A, vector_B);

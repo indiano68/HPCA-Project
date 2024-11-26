@@ -1,6 +1,5 @@
 #pragma once
-
-int constexpr DEBUG = false;
+#include <config.h> // THREADS_PER_BLOCK, TILE_SIZE, ...
 
 template <class T>
 __device__ void print_shared(T *A_shared, T *B_shared, int base, int height)
@@ -87,6 +86,55 @@ __device__ __forceinline__ void block_bin_search(const T *A_local, const T *B_lo
           M_global[tid] = B_local[Q.x];
         }
         break;
+      }
+      else
+      {
+        K = {Q.x + 1, Q.y - 1};
+      }
+    }
+    else
+    {
+      P = {Q.x - 1, Q.y + 1};
+    }
+  }
+}
+
+template <class T>
+__device__ __forceinline__ int2 block_bin_search_tiled(const T *A_local, const T *B_local, int2 K, int2 P, T *M_global, int tile_base, int tile_height, bool tile_bottom_border, bool tile_right_border, int block_diag_idx)
+{
+
+  int M_idx = block_diag_idx + blockIdx.x * TILE_SIZE * TILES_PER_BLOCK;
+
+  if(DEBUG && blockIdx.x == 1)
+  {
+    printf("block_bin_search_tiled block %d thread %d, M_idx = %d\n", blockIdx.x, threadIdx.x, M_idx);
+    print_shared(A_local, B_local, tile_base, tile_height);
+  }
+  while (true)
+  {
+    //uint32_t offset = abs(K.y - P.y) / 2; don't need abs because we know that K.y > P.y
+    uint32_t offset = (K.y - P.y) / 2;
+    int2 Q = {K.x + (int)offset, K.y - (int)offset};
+
+    bool Q_bottom_border = (Q.y == tile_height) && tile_bottom_border;
+    bool Q_right_border = (Q.x == tile_base) && tile_right_border;
+    bool Q_left_border = (Q.x == 0);
+    bool Q_top_border = (Q.y == 0);
+
+    if (Q_bottom_border || Q_left_border || A_local[Q.y] > B_local[Q.x - 1])
+    {
+      if (Q_right_border || Q_top_border || A_local[Q.y - 1] <= B_local[Q.x])
+      {
+        if (!Q_bottom_border && (Q_right_border || A_local[Q.y] <= B_local[Q.x]))
+        {
+          M_global[M_idx] = A_local[Q.y];
+          return {Q.x, Q.y + 1};
+        }
+        else
+        {
+          M_global[M_idx] = B_local[Q.x];
+          return {Q.x + 1, Q.y};
+        }
       }
       else
       {
