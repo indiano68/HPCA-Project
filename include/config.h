@@ -6,6 +6,16 @@ unsigned constexpr THREADS_PER_BLOCK_PARTITIONER = 32;
 constexpr unsigned TILE_SIZE = 512;
 constexpr unsigned TILES_PER_BLOCK = 12;
 
+constexpr unsigned THREADS_PER_BOX = 512; // (CUDA block size)
+constexpr unsigned WORK_PER_THREAD = 12;
+constexpr unsigned BOX_SIZE = THREADS_PER_BOX * WORK_PER_THREAD;
+
+// const std::vector<int> A_TEST = {30, 50, 60, 80, 110};
+// const std::vector<int> B_TEST = {10, 20, 40, 70, 90, 100, 120, 130};
+
+const std::vector<int> A_TEST = {3,5,6,8,10};
+const std::vector<int> B_TEST = {9,21,41,71,91,101,121};
+
 //enable timing
 #define CUDA_TIMING 
 

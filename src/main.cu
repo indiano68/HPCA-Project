@@ -35,13 +35,17 @@ int main(int argc, char **argv)
            *v_out_gpu_0, 
            *v_out_gpu_1;
     int2   *v_Q_gpu,
-           *v_Q_gpu_window;
+           *v_Q_gpu_window,
+            *v_Q_gpu_serial_tile;
     
     /*
         Building vectors to sort 
     */
-    std::vector<v_type> vector_A = build_random_vector<v_type>(std::stoi(argv[1]), -1000, 1000);
-    std::vector<v_type> vector_B = build_random_vector<v_type>(std::stoi(argv[2]), -1000, 1000);
+    std::vector<v_type> vector_A = build_random_vector<v_type>(std::stoi(argv[1]));
+    std::vector<v_type> vector_B = build_random_vector<v_type>(std::stoi(argv[2]));
+
+    // std::vector<v_type> vector_A = A_TEST;
+    // std::vector<v_type> vector_B = B_TEST;
 
     /*
         Building buffers for that allow the varius benchmakred kernels 
@@ -71,22 +75,26 @@ int main(int argc, char **argv)
 
     if constexpr(DEBUG)
     {
-        std::cout << "Vector 1: " << std::endl;
+        std::cout << "Vector A: " << std::endl;
         print_vector(vector_A);
-        std::cout << "Vector 2: " << std::endl;
+        std::cout << "Vector B: " << std::endl;
         print_vector(vector_B);
     }
 
     int block_num = (vector_out_size + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
     dim3 grid_window((vector_out_size + TILE_SIZE * TILES_PER_BLOCK - 1) / (TILE_SIZE * TILES_PER_BLOCK));
+    dim3 grid_serial_tile((vector_out_size + BOX_SIZE - 1) / BOX_SIZE);
 
     cudaMalloc(&v_A_B_gpu   , vector_sizeof(vector_A) + vector_sizeof(vector_B));
     v_A_gpu = v_A_B_gpu;
     v_B_gpu = v_A_B_gpu + vector_A.size();
+
     cudaMalloc(&v_out_gpu_0 , vector_sizeof(vector_out_0));
     cudaMalloc(&v_out_gpu_1 , vector_sizeof(vector_out_1));
+
     cudaMalloc(&v_Q_gpu     , (block_num) * sizeof(int2));
     cudaMalloc(&v_Q_gpu_window, grid_window.x * sizeof(int2));
+    cudaMalloc(&v_Q_gpu_serial_tile, grid_serial_tile.x * sizeof(int2));
 
     vector_Q.resize(block_num);
     cudaMemcpy(v_A_gpu, vector_A.data(), vector_sizeof(vector_A), cudaMemcpyHostToDevice);
@@ -122,18 +130,28 @@ int main(int argc, char **argv)
     ########################################
     */
     dim3 grid_partitioning_window((grid_window.x + THREADS_PER_BLOCK_PARTITIONER - 1) / THREADS_PER_BLOCK_PARTITIONER);
+    dim3 grid_partitioning_serial_tile((grid_serial_tile.x + THREADS_PER_BLOCK_PARTITIONER - 1) / THREADS_PER_BLOCK_PARTITIONER);
     emptyk<<<1, 1>>>();
     TIME_START(timing_window);TIME_START(timing_partitioning_window);
     for (int i = 0; i < N_ITER; i++)
     {        
-        partition_k_gpu_packed<<<grid_partitioning_window, THREADS_PER_BLOCK_PARTITIONER>>>(v_A_gpu, vector_A.size(),
-                                                                                            v_B_gpu, vector_B.size(),
-                                                                                            v_Q_gpu_window);
+        // partition_k_gpu_packed<<<grid_partitioning_window, THREADS_PER_BLOCK_PARTITIONER>>>(v_A_gpu, vector_A.size(),
+        //                                                                                     v_B_gpu, vector_B.size(),
+        //                                                                                     v_Q_gpu_window);
+        // TIME_STOP_SAVE(timing_partitioning_window, time_partitioning_window);
+
+        // merge_k_gpu_window<<<grid_window, TILE_SIZE>>>(v_A_gpu, vector_A.size(),
+        //                                                v_B_gpu, vector_B.size(),
+        //                                                v_out_gpu_1, v_Q_gpu_window);
+
+        partition_k_gpu_packed<<<grid_partitioning_serial_tile, THREADS_PER_BLOCK_PARTITIONER>>>(v_A_gpu, vector_A.size(),
+                                                                                                 v_B_gpu, vector_B.size(),
+                                                                                                 v_Q_gpu_serial_tile, BOX_SIZE);
         TIME_STOP_SAVE(timing_partitioning_window, time_partitioning_window);
 
-        merge_k_gpu_window<<<grid_window, TILE_SIZE>>>(v_A_gpu, vector_A.size(),
-                                                       v_B_gpu, vector_B.size(),
-                                                       v_out_gpu_1, v_Q_gpu_window);
+        merge_k_gpu_serial_tile_shared<<<grid_serial_tile, THREADS_PER_BOX>>>(v_A_gpu, vector_A.size(),
+                                                                       v_B_gpu, vector_B.size(),
+                                                                       v_out_gpu_1, v_Q_gpu_serial_tile);
     }
     TIME_STOP_SAVE(timing_window,time_window);
 
@@ -154,8 +172,9 @@ int main(int argc, char **argv)
     cudaFree(v_Q_gpu);
 
     TIME_EVENT_DESTROY(timing_erik);
+    TIME_EVENT_DESTROY(timing_partitioning_erik);
     TIME_EVENT_DESTROY(timing_window);
-    TIME_EVENT_DESTROY(timing_window);
+    TIME_EVENT_DESTROY(timing_partitioning_window);
 
     return EXIT_SUCCESS;
 }
