@@ -408,7 +408,6 @@ __global__ void merge_k_gpu_serial_tiled(const T *A_ptr,
   T* A_tile = A_block + Q_start.y;
   T* B_tile = B_block + Q_start.x;
 
-//__shared__ T M_shared[BOX_SIZE];
   T M_tile[WORK_PER_THREAD];
 
   //perform serial tile merge
@@ -421,13 +420,11 @@ __global__ void merge_k_gpu_serial_tiled(const T *A_ptr,
 
     if(insert_A)
     {
-      // M_shared[threadIdx.x * WORK_PER_THREAD + item] = A_tile[i];
       M_tile[item] = A_tile[i];
       i++;
     }
     else
     {
-      // M_shared[threadIdx.x * WORK_PER_THREAD + item] = B_tile[j];
       M_tile[item] = B_tile[j];
       j++;
     }
@@ -441,12 +438,12 @@ __global__ void merge_k_gpu_serial_tiled(const T *A_ptr,
   }
   __syncthreads();
 
-  //store to global memory
+  //store to global memory, here we check bounds
   unsigned effective_box_size = box_base + box_height; //could be less than BOX_SIZE
+  unsigned M_idx_start = Q_prev.x + Q_prev.y;
   for (unsigned item = threadIdx.x; item < effective_box_size; item += THREADS_PER_BOX)
   {
-    // M_ptr[Q_prev.x + Q_prev.y + item] = M_shared[item];
-    M_ptr[Q_prev.x + Q_prev.y + item] = shared_mem_block[item];
+    M_ptr[M_idx_start + item] = shared_mem_block[item];
   }
 
   return;  

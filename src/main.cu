@@ -36,16 +36,13 @@ int main(int argc, char **argv)
            *v_out_gpu_1;
     int2   *v_Q_gpu,
            *v_Q_gpu_window,
-            *v_Q_gpu_serial_tile;
+           *v_Q_gpu_serial_tile;
     
     /*
         Building vectors to sort 
     */
     std::vector<v_type> vector_A = build_random_vector<v_type>(std::stoi(argv[1]));
     std::vector<v_type> vector_B = build_random_vector<v_type>(std::stoi(argv[2]));
-
-    // std::vector<v_type> vector_A = A_TEST;
-    // std::vector<v_type> vector_B = B_TEST;
 
     /*
         Building buffers for that allow the varius benchmakred kernels 
@@ -69,6 +66,7 @@ int main(int argc, char **argv)
         std::cout << "Required Size A < Size B!" << std::endl;
         abort();
     }
+    std::cout << "Size A: " << vector_A.size() << " Size B: " << vector_B.size() << std::endl;
 
     std::sort(vector_A.begin(), vector_A.end());
     std::sort(vector_B.begin(), vector_B.end());

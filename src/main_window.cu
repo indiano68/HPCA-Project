@@ -10,7 +10,7 @@
 #include <thrust_merge.cuh>
 #include <randomCudaVector.cuh>
 
-using v_type = int;
+using v_type = float;
 
 __global__ void emptyk()
 {
