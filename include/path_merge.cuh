@@ -361,7 +361,7 @@ __global__ void merge_k_gpu_window(const T *A_ptr,
 }
 
 template <class T>
-__global__ void merge_k_gpu_serial_tile(const T *A_ptr,
+__global__ void merge_k_gpu_serial_tiled(const T *A_ptr,
                                         const size_t A_size,
                                         const T *B_ptr,
                                         const size_t B_size,
@@ -370,101 +370,6 @@ __global__ void merge_k_gpu_serial_tile(const T *A_ptr,
 {
 
   __shared__ T shared_mem_block[BOX_SIZE];
-
-  //int last_tid_of_block = TILE_SIZE - 1;
-
-  int2 Q_next = Q_global[blockIdx.x];
-  int2 Q_prev = (blockIdx.x > 0) ? Q_global[blockIdx.x - 1] : make_int2(0, 0);
-
-  int x_start = Q_prev.x;
-  int y_start = Q_prev.y;
-
-  int box_base = Q_next.x - Q_prev.x;
-  int box_height = Q_next.y - Q_prev.y;
-
-  if constexpr(DEBUG) if(threadIdx.x == 0)
-  {
-    printf("Block %d, Q_next(%d,%d) Q_prev(%d,%d), box_base = %d, box_height = %d\n", blockIdx.x, Q_next.x, Q_next.y, Q_prev.x, Q_prev.y, box_base, box_height);
-  }
-
-  //shared memory loading
-  T *A_block = shared_mem_block;
-  T *B_block = shared_mem_block + box_height;
-  {
-    int tiles;
-    for(tiles = 0; tiles < box_height / THREADS_PER_BOX; tiles++)
-    {
-      A_block[threadIdx.x + tiles * THREADS_PER_BOX] = A_ptr[y_start + threadIdx.x + tiles * THREADS_PER_BOX];
-    }
-
-    if (threadIdx.x + tiles * THREADS_PER_BOX < box_height)
-    {
-      A_block[threadIdx.x + tiles * THREADS_PER_BOX] = A_ptr[y_start + threadIdx.x + tiles * THREADS_PER_BOX];
-    }
-
-    for(tiles = 0; tiles < box_base / THREADS_PER_BOX; tiles++)
-    {
-      B_block[threadIdx.x + tiles * THREADS_PER_BOX] = B_ptr[x_start + threadIdx.x + tiles * THREADS_PER_BOX];
-    }
-
-    if (threadIdx.x + tiles * THREADS_PER_BOX < box_base)
-    {
-      B_block[threadIdx.x + tiles * THREADS_PER_BOX] = B_ptr[x_start + threadIdx.x + tiles * THREADS_PER_BOX];
-    }
-    if constexpr(DEBUG) print_shared(A_block, B_block, box_base, box_height);
-    __syncthreads();
-  }
-
-  int2 Q_start = partition_box(A_block, box_height, B_block, box_base, WORK_PER_THREAD);
-
-  if constexpr(DEBUG) printf("MERGE_SERIAL_TILE: Block %d thread %d, Q_start(%d,%d)\n", blockIdx.x, threadIdx.x, Q_start.x, Q_start.y);
-
-  bool thread_within_bounds = threadIdx.x * WORK_PER_THREAD < box_base + box_height;
-
-  if(thread_within_bounds)
-  {
-    unsigned thread_work = min(WORK_PER_THREAD, box_base + box_height - threadIdx.x * WORK_PER_THREAD);
-
-    if constexpr(DEBUG) printf("Block %d thread %d in bounds, thread_work = %d\n", blockIdx.x, threadIdx.x, thread_work);
-
-    T* A_tile = A_block + Q_start.y;
-    T* B_tile = B_block + Q_start.x;
-
-    unsigned i = 0, j = 0;
-    //perform serial tile merge
-    for(int item = 0; item < thread_work; item++)
-    {
-      bool insert_A = (Q_start.y + i < box_height) && (Q_start.x + j >= box_base || A_tile[i] < B_tile[j]);
-
-      if constexpr(DEBUG) printf("Block %d thread %d, comparing A_tile[%d] < B_tile[%d], A_tile[%d] = %d, B_tile[%d] = %d\n", blockIdx.x, threadIdx.x, i, j, i, A_tile[i], j, B_tile[j]);
-      if(insert_A)
-      {
-        M_ptr[Q_prev.x + Q_prev.y + threadIdx.x * WORK_PER_THREAD + item] = A_tile[i];
-        i++;
-      }
-      else
-      {
-        M_ptr[Q_prev.x + Q_prev.y + threadIdx.x * WORK_PER_THREAD + item] = B_tile[j];
-        j++;
-      }
-    }
-  }
-
-  return;  
-}
-
-template <class T>
-__global__ void merge_k_gpu_serial_tile_shared(const T *A_ptr,
-                                        const size_t A_size,
-                                        const T *B_ptr,
-                                        const size_t B_size,
-                                        T *M_ptr,
-                                        const int2 *Q_global)
-{
-
-  //TODO: use less shared memory
-  __shared__ T shared_mem_block[BOX_SIZE];
-  __shared__ T M_shared[BOX_SIZE];
 
   int2 Q_next = Q_global[blockIdx.x];
   int2 Q_prev = (blockIdx.x > 0) ? Q_global[blockIdx.x - 1] : make_int2(0, 0);
@@ -500,46 +405,48 @@ __global__ void merge_k_gpu_serial_tile_shared(const T *A_ptr,
   //fine grained partitioning in shared memory
   int2 Q_start = partition_box(A_block, box_height, B_block, box_base, WORK_PER_THREAD);
 
-  //here we exclude threads that do not have even a single element to merge (i.e. threads whose tile is completely out of bounds)
-  unsigned effective_box_size = box_base + box_height; //could be less than BOX_SIZE
-  bool thread_within_bounds = threadIdx.x * WORK_PER_THREAD < effective_box_size;
+  T* A_tile = A_block + Q_start.y;
+  T* B_tile = B_block + Q_start.x;
 
-  if(thread_within_bounds)
-  {
+//__shared__ T M_shared[BOX_SIZE];
+  T M_tile[WORK_PER_THREAD];
 
-    T* A_tile = A_block + Q_start.y;
-    T* B_tile = B_block + Q_start.x;
-
-    //perform serial tile merge
-    unsigned i = 0, j = 0;
+  //perform serial tile merge
+  unsigned i = 0, j = 0;
 #pragma unroll
-    //we use WORK_PER_THREAD here because shared memory is allocated even for threads that are not in bounds
-    //for(int item = 0; item < thread_work; item++)
-    for(unsigned item = 0; item < WORK_PER_THREAD; item++)
+  //we don't check bounds, end of shared memory will contain garbage for threads that are not in bounds
+  for(unsigned item = 0; item < WORK_PER_THREAD; item++)
+  {
+    bool insert_A = (Q_start.y + i < box_height) && (Q_start.x + j >= box_base || A_tile[i] < B_tile[j]);
+
+    if(insert_A)
     {
-      bool insert_A = (Q_start.y + i < box_height) && (Q_start.x + j >= box_base || A_tile[i] < B_tile[j]);
-
-      if(insert_A)
-      {
-        M_shared[threadIdx.x * WORK_PER_THREAD + item] = A_tile[i];
-        i++;
-      }
-      else
-      {
-        M_shared[threadIdx.x * WORK_PER_THREAD + item] = B_tile[j];
-        j++;
-      }
+      // M_shared[threadIdx.x * WORK_PER_THREAD + item] = A_tile[i];
+      M_tile[item] = A_tile[i];
+      i++;
     }
-    //not needed here (i believe)
-    // __syncthreads();
-
-    //when storing to global memory we store only the elements that are in bounds (some threads may have less than WORK_PER_THREAD elements to merge)
-    unsigned thread_work = min(WORK_PER_THREAD, effective_box_size - threadIdx.x * WORK_PER_THREAD);
-    for(unsigned item = 0; item < thread_work; item++)
+    else
     {
-      M_ptr[Q_prev.x + Q_prev.y + threadIdx.x * WORK_PER_THREAD + item] = M_shared[threadIdx.x * WORK_PER_THREAD + item];
+      // M_shared[threadIdx.x * WORK_PER_THREAD + item] = B_tile[j];
+      M_tile[item] = B_tile[j];
+      j++;
     }
+  }
+  __syncthreads();
 
+  //copy to shared memory (garbage for threads that are not in bounds)
+  for(unsigned item = 0; item < WORK_PER_THREAD; item++)
+  {
+    shared_mem_block[threadIdx.x * WORK_PER_THREAD + item] = M_tile[item];
+  }
+  __syncthreads();
+
+  //store to global memory
+  unsigned effective_box_size = box_base + box_height; //could be less than BOX_SIZE
+  for (unsigned item = threadIdx.x; item < effective_box_size; item += THREADS_PER_BOX)
+  {
+    // M_ptr[Q_prev.x + Q_prev.y + item] = M_shared[item];
+    M_ptr[Q_prev.x + Q_prev.y + item] = shared_mem_block[item];
   }
 
   return;  

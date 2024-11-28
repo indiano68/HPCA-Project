@@ -39,9 +39,6 @@ float bench_thrust_merge(T *A, size_t A_size, T *B, size_t B_size, std::vector<T
     thrust::device_ptr<T> d_A_ptr(A);
     thrust::device_ptr<T> d_B_ptr(B);
 
-    std::cout << "A_size: " << A_size << std::endl;
-    std::cout << "B_size: " << B_size << std::endl;
-
     thrust::device_vector<T> result(A_size + B_size);
 
     float milliseconds = 0;

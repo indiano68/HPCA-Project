@@ -149,7 +149,7 @@ int main(int argc, char **argv)
                                                                                                  v_Q_gpu_serial_tile, BOX_SIZE);
         TIME_STOP_SAVE(timing_partitioning_window, time_partitioning_window);
 
-        merge_k_gpu_serial_tile_shared<<<grid_serial_tile, THREADS_PER_BOX>>>(v_A_gpu, vector_A.size(),
+        merge_k_gpu_serial_tiled<<<grid_serial_tile, THREADS_PER_BOX>>>(v_A_gpu, vector_A.size(),
                                                                        v_B_gpu, vector_B.size(),
                                                                        v_out_gpu_1, v_Q_gpu_serial_tile);
     }
@@ -163,7 +163,7 @@ int main(int argc, char **argv)
     auto merged = mergeSmall_k_cpu(vector_A, vector_B);
 
     std::cout << "Equality Erik     mergeLarge    : " << (merged == vector_out_0 ? "True " : "False ") << "T " << time_erik / N_ITER << " | Partition T " << time_partitioning_erik / N_ITER << std::endl;
-    std::cout << "Equality Tiled  mergeLarge    : " << (merged == vector_out_1 ? "True " : "False ") << "T " << time_window / N_ITER << " | Partition T " << time_partitioning_window / N_ITER << std::endl;
+    std::cout << "Equality serial-tile  mergeLarge    : " << (merged == vector_out_1 ? "True " : "False ") << "T " << time_window / N_ITER << " | Partition T " << time_partitioning_window / N_ITER << std::endl;
     std::cout << "Equality thrust   merge         : " << (merged == vector_out_2 ? "True " : "False ") << "T " << time_thrust << std::endl;
 
     cudaFree(v_A_B_gpu),
