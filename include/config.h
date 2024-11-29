@@ -3,11 +3,12 @@
 int constexpr THREADS_PER_BLOCK = 512;
 unsigned constexpr THREADS_PER_BLOCK_PARTITIONER = 32;
 
+//gpu_merge_k_window
 constexpr unsigned TILE_SIZE = 512;
 constexpr unsigned TILES_PER_BLOCK = 12;
-
+//gpu_merge_k_serial_tile
 constexpr unsigned THREADS_PER_BOX = 512; // CUDA block size
-constexpr unsigned WORK_PER_THREAD = 14; // number of consecutive elements to process per thread
+constexpr unsigned WORK_PER_THREAD = 15; // number of consecutive elements to process per thread
 constexpr unsigned BOX_SIZE = THREADS_PER_BOX * WORK_PER_THREAD; // number of elements to process per block
 
 //enable timing
