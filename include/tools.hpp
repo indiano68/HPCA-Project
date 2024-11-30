@@ -27,14 +27,18 @@ std::vector<T> build_random_vector(size_t size, T min_value = numeric_limits<T>:
     std::vector<T> random_vector;
     random_vector.reserve(size);
     std::random_device rd;
-    auto seed = rd() + static_cast<unsigned int>(time(nullptr));
+    auto seed = rd();
     std::mt19937 gen(seed);
     std::uniform_real_distribution<> dis(static_cast<double>(min_value), static_cast<double>(max_value));
+
+    std::cout << "Min value: " << min_value << " Max value: " << max_value << std::endl;
+    std::cout << "Trying to gen: " << dis(gen) << std::endl;
 
     for (size_t i = 0; i < size; ++i)
     {
         random_vector.push_back(static_cast<T>(dis(gen)));
     }
+
     return random_vector;
 }
 
