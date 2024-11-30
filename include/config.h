@@ -20,7 +20,6 @@ typedef int2 coordinate;
 
 int constexpr DEBUG = false;
 
-
 //test cases
 const std::vector<int> A_TEST = {30, 50, 60, 80, 110};
 const std::vector<int> B_TEST = {10, 20, 40, 70, 90, 100, 120};

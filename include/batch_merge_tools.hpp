@@ -2,6 +2,7 @@
 #include <vector>
 #include <random>
 #include <algorithm>
+#include <chrono>
 
 using std::numeric_limits;
 
@@ -30,11 +31,14 @@ const std::vector<unsigned> build_and_sort_batches(std::vector<T> &batches, unsi
 template <class T>
 void merge_batch_cpu(std::vector<T> &batches, const std::vector<unsigned> &offsets, unsigned N, unsigned d)
 {
+  auto start = std::chrono::high_resolution_clock::now();
   for(int batch_idx = 0; batch_idx < N; batch_idx++)
   {
     auto curr_batch_start = batches.begin() + batch_idx * d;
     std::inplace_merge(curr_batch_start, curr_batch_start + offsets[batch_idx], curr_batch_start + d);
   }
+  auto end = std::chrono::high_resolution_clock::now();
+  std::cout << "CPU merge time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
 }
 
 template <class T>
