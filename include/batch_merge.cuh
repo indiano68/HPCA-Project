@@ -1,3 +1,5 @@
+#pragma once
+
 __device__ __forceinline__ void set_rect_endpoints(uint2 *K, uint2 *P, unsigned idx, unsigned base, unsigned height) {
     K->x = max(0, idx - base);
     K->y = min(idx, base);
@@ -7,7 +9,7 @@ __device__ __forceinline__ void set_rect_endpoints(uint2 *K, uint2 *P, unsigned 
 }
 
 template <typename T>
-__global__ void mergeSmallBatch_k(T *batches, unsigned *A_sizes, unsigned N, unsigned d)
+__global__ void mergeSmallBatch_k(T *batches, unsigned short *A_sizes, unsigned N, unsigned short d)
 {
   __shared__ T shared_in[1024];
   __shared__ T shared_out[1024];
@@ -36,9 +38,7 @@ __global__ void mergeSmallBatch_k(T *batches, unsigned *A_sizes, unsigned N, uns
     T *A_local = batch;
     T *B_local = batch + local_A_size;
     
-    uint2 K = {0, 0};
-    uint2 P = {0, 0};
-    uint2 Q = {0, 0};
+    uint2 K, P, Q;
 
     K.x = thread_local_idx <= local_A_size ? 0 : thread_local_idx - local_A_size;
     K.y = thread_local_idx <= local_A_size ? thread_local_idx : local_A_size;
@@ -48,7 +48,7 @@ __global__ void mergeSmallBatch_k(T *batches, unsigned *A_sizes, unsigned N, uns
 
     while (true)
     {
-      size_t offset = (K.y - P.y) / 2;
+      unsigned offset = (K.y - P.y) / 2;
       Q.x = K.x + offset;
       Q.y = K.y - offset;
       if (Q.y == local_A_size || Q.x == 0 || A_local[Q.y] > B_local[Q.x - 1])
