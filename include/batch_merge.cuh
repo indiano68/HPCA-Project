@@ -1,13 +1,5 @@
 #pragma once
 
-__device__ __forceinline__ void set_rect_endpoints(uint2 *K, uint2 *P, unsigned idx, unsigned base, unsigned height) {
-    K->x = max(0, idx - base);
-    K->y = min(idx, base);
-
-    P->x = min(idx, height);
-    P->y = max(0, idx - height);
-}
-
 template <typename T>
 __global__ void mergeSmallBatch_k(T *batches, unsigned short *A_sizes, unsigned N, unsigned short d)
 {
