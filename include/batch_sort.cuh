@@ -7,30 +7,6 @@
 
 using std::numeric_limits;
 
-template <class T>
-void build_M_batches(std::vector<T> &batches, unsigned N, unsigned short d, T min = numeric_limits<T>::min(), T max = numeric_limits<T>::max())
-{
-  std::cout << "Generating " << N << " random batches of size " << d << " ..." << std::endl;
-  std::random_device rd;
-  std::mt19937 gen(rd());
-  std::uniform_real_distribution<double> dis(min, max);
-  std::generate(batches.begin(), batches.end(), [&dis, &gen]() { return static_cast<T>(dis(gen)); });
-}
-
-template <class T>
-void sort_batch_cpu(std::vector<T> &batches, unsigned N, unsigned short d)
-{
-  auto start = std::chrono::high_resolution_clock::now();
-  #pragma omp parallel for
-  for(unsigned batch_idx = 0; batch_idx < N; batch_idx++)
-  {
-    auto curr_batch_start = batches.begin() + batch_idx * d;
-    std::sort(curr_batch_start, curr_batch_start + d);
-  }
-  auto end = std::chrono::high_resolution_clock::now();
-  std::cout << "CPU sort time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-}
-
 //works only id d is a power of 2
 template <typename T>
 __global__ void mergeSmallBatch_for_k(T *batches, unsigned N, unsigned short d)
@@ -117,8 +93,6 @@ __global__ void mergeSmallBatch_for_k(T *batches, unsigned N, unsigned short d)
 template <typename T>
 __global__ void sortSmallBatch_k(T *batches, unsigned N, unsigned short d)
 {
-  // __shared__ T shared_in[1024];
-  // __shared__ T shared_out[1024];
 
   __shared__ T shared_mem[2048];
   T *shared_in = shared_mem;
@@ -196,11 +170,35 @@ __global__ void sortSmallBatch_k(T *batches, unsigned N, unsigned short d)
     }
   }
 
-  //write data back to global memory
+  //write data back to global memory 
   // if(global_idx < N)
   {
     batches[blockDim.x * blockIdx.x + threadIdx.x] = shared_in[threadIdx.x];
   }
 
   return;
+}
+
+template <class T>
+void build_M_batches(std::vector<T> &batches, unsigned N, unsigned short d, T min = numeric_limits<T>::min(), T max = numeric_limits<T>::max())
+{
+  std::cout << "Generating " << N << " random batches of size " << d << " ..." << std::endl;
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_real_distribution<double> dis(min, max);
+  std::generate(batches.begin(), batches.end(), [&dis, &gen]() { return static_cast<T>(dis(gen)); });
+}
+
+template <class T>
+void sort_batch_cpu(std::vector<T> &batches, unsigned N, unsigned short d)
+{
+  auto start = std::chrono::high_resolution_clock::now();
+  #pragma omp parallel for
+  for(unsigned batch_idx = 0; batch_idx < N; batch_idx++)
+  {
+    auto curr_batch_start = batches.begin() + batch_idx * d;
+    std::sort(curr_batch_start, curr_batch_start + d);
+  }
+  auto end = std::chrono::high_resolution_clock::now();
+  std::cout << "CPU sort time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
 }

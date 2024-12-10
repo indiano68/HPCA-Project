@@ -25,8 +25,7 @@ __global__ void generate_random_vector(curandState *state, T *vector, size_t siz
     }
 }
 
-
-// Function to generate random vectors on GPU
+// Host function to generate random vectors on GPU
 template <typename T>
 void generate_random_vectors_cuda(T *v_A_gpu, size_t size_A, T *v_B_gpu, size_t size_B, T max_magnitude = numeric_limits<T>::max()) {
     // Set dimensions for threads and blocks

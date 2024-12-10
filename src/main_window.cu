@@ -1,13 +1,13 @@
 #include <iostream>
 #include <stdio.h>
-#include <tools.hpp>
+#include <utils.hpp>
 #include <vector>
 #include <algorithm>
 #include <chrono>
 #include <path_merge.cuh>
 #include <partition.cuh>
-#include <wrapper.cuh>
 #include <thrust_merge.cuh>
+#include <thrust/sort.h>
 #include <randomCudaVector.cuh>
 
 using v_type = float;
@@ -90,7 +90,7 @@ int main(int argc, char **argv)
 
     /*
     ########################################
-        Benchmarking of Tiled Kernel
+        Benchmarking of Window Kernel
     ########################################
     */
     emptyk<<<1, 1>>>();
@@ -98,9 +98,9 @@ int main(int argc, char **argv)
     for (int i = 0; i < N_ITER; i++)
     {        
 
-        partition_k_gpu_packed<<<grid_partitioning_0, THREADS_PER_BLOCK_PARTITIONER>>>(v_A_gpu, size_A,
-                                                                                            v_B_gpu, size_B,
-                                                                                            v_Q_gpu_0);
+        partition_k<<<grid_partitioning_0, THREADS_PER_BLOCK_PARTITIONER>>>(v_A_gpu, size_A,
+                                                                            v_B_gpu, size_B,
+                                                                            v_Q_gpu_0, TILE_SIZE * TILES_PER_BLOCK);
         TIME_STOP_SAVE(timing_partitioning_0, time_partitioning_0);
 
         merge_k_gpu_window<<<grid_0, TILE_SIZE>>>(v_A_gpu, size_A,
@@ -122,7 +122,7 @@ int main(int argc, char **argv)
     TIME_START(timing_1);TIME_START(timing_partitioning_1);
     for (int i = 0; i < N_ITER; i++)
     {
-        partition_k_gpu_packed<<<grid_partitioning_1, THREADS_PER_BLOCK_PARTITIONER>>>(v_A_gpu, size_A,
+        partition_k<<<grid_partitioning_1, THREADS_PER_BLOCK_PARTITIONER>>>(v_A_gpu, size_A,
                                                                                        v_B_gpu, size_B,
                                                                                        v_Q_gpu_1, BOX_SIZE);
         TIME_STOP_SAVE(timing_partitioning_1, time_partitioning_1);
@@ -147,6 +147,7 @@ int main(int argc, char **argv)
     cudaFree(v_out_gpu);
     cudaFree(v_Q_gpu_0);
     cudaFree(v_Q_gpu_1);
+
     TIME_EVENT_DESTROY(timing_0)
     TIME_EVENT_DESTROY(timing_partitioning_0)
     TIME_EVENT_DESTROY(timing_1)

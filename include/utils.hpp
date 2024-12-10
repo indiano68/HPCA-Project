@@ -1,13 +1,9 @@
 #pragma once
 
-#include <iostream>
 #include <vector>
-#include <random>
-#include <type_traits>
+#include <stdio.h> // printf
 
-using std::numeric_limits;
-
-// Add this macro for CUDA error checking
+// CUDA error checking
 #define CUDA_CHECK(call)                                                     \
     do                                                                       \
     {                                                                        \
@@ -20,79 +16,10 @@ using std::numeric_limits;
         }                                                                    \
     } while (0)
 
-template <class T>
-std::vector<T> build_random_vector(size_t size, T min_value = numeric_limits<T>::min(), T max_value = numeric_limits<T>::max())
-{
-    static_assert(std::is_arithmetic<T>::value, "Template type must be numeric");
-    std::vector<T> random_vector;
-    random_vector.reserve(size);
-    std::random_device rd;
-    auto seed = rd();
-    std::mt19937 gen(seed);
-    std::uniform_real_distribution<> dis(static_cast<double>(min_value), static_cast<double>(max_value));
-
-    std::cout << "Min value: " << min_value << " Max value: " << max_value << std::endl;
-    std::cout << "Trying to gen: " << dis(gen) << std::endl;
-
-    for (size_t i = 0; i < size; ++i)
-    {
-        random_vector.push_back(static_cast<T>(dis(gen)));
-    }
-
-    return random_vector;
-}
-
-template <class T>
-void print_vector(std::vector<T> vector, const std::string &message = "")
-{
-
-    if (!message.empty())
-        std::cout << message << std::endl;
-
-    std::cout << "[ ";
-    for (auto element : vector)
-        std::cout << element << ", ";
-    std::cout << '\b' << '\b';
-    std::cout << " ]" << std::endl;
-}
-
 template<typename T>
-size_t vector_sizeof(const std::vector<T>& vector)
+inline size_t vector_sizeof(const std::vector<T>& vector)
 {
     return sizeof(T)*vector.size();
-}
-
-template <class T>
-std::vector<T> mergeSmall_k_cpu(std::vector<T> A, std::vector<T> B)
-{
-  static_assert(std::is_arithmetic<T>::value, "Template type must be numeric");
-
-  size_t A_size = A.size();
-  size_t B_size = B.size();
-  size_t M_size = A_size + B_size;
-  std::vector<T> M(M_size);
-
-  size_t i = 0, j = 0;
-
-  while (i + j < M_size)
-  {
-    if (i >= A_size)
-    {
-      M[i + j] = B[j];
-      j++;
-    }
-    else if (j >= B_size || A[i] < B[j])
-    {
-      M[i + j] = A[i];
-      i++;
-    }
-    else
-    {
-      M[i + j] = B[j];
-      j++;
-    }
-  }
-  return M;
 }
 
 void printGPUInfo()

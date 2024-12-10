@@ -1,7 +1,6 @@
 #include <iostream>
-#include <tools.hpp>
+#include <utils.hpp>
 #include <batch_merge.cuh>
-#include <batch_merge_tools.hpp>
 #define CUDA_TIMING
 #include <cuda_timing.h>
 
@@ -29,7 +28,7 @@ int main(int argc, char **argv)
   unsigned short d = static_cast<unsigned short>(d_arg);
 
   std::vector<v_type> A_B_vectors(N * d);
-  std::vector<unsigned short> A_sizes = build_and_sort_batches(A_B_vectors, N, d, -10, 10);
+  std::vector<unsigned short> A_sizes = build_and_sort_batches(A_B_vectors, N, d);
 
   std::vector<v_type> vector_out(N * d);
   v_type *v_A_B_gpu;

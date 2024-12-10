@@ -1,7 +1,7 @@
 #include <iostream>
-#include <tools.hpp>
+#include <utils.hpp>
 #include <batch_sort.cuh>
-#include <batch_merge.cuh>
+
 #define CUDA_TIMING
 #include <cuda_timing.h>
 
