@@ -1,3 +1,8 @@
+/**
+ * @brief This file containes kernels to generate random vectors on GPU using curand library.
+ * It also containes a host function that wraps the device code.
+ */
+
 #pragma once
 #include <curand_kernel.h>
 #include <cuda_runtime.h>
@@ -25,7 +30,7 @@ __global__ void generateRandomVector_k(curandState *state, T *vector, size_t siz
     }
 }
 
-// Host function to generate random vectors on GPU
+// Host function to call the device code
 template <typename T>
 void generate_random_vector_gpu(T *v_gpu, size_t size_v, T max_magnitude = numeric_limits<T>::max()) {
     // Set dimensions for threads and blocks

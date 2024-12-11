@@ -72,6 +72,9 @@ __global__ void mergeSmall_k(const T *v_1_ptr,
     }
 }
 
+/*
+ * Naive extension of MergeSmall to large arrays by replacing threadIdx.x with blockIdx.x * blockDim.x + threadIdx.x
+*/
 template <class T>
 __global__ void mergeLarge_naive_k(const T *v_1_ptr,
                                    const size_t v_1_size,
@@ -131,14 +134,21 @@ __global__ void mergeLarge_naive_k(const T *v_1_ptr,
     }
 }
 
+/**
+ * @brief Device function to perform binary search on a single window in shared memory, used in mergeLarge_window_k.
+ * As soon as it finds the element to insert, it copies it directly from shared memory to global memory.
+ * It returns the coordinates of the next point along the merge path. This information is only actually used by the last thread of the block,
+ * which communicates it to the other threads in the block so that the next window can be processed.
+ * The bound checks have been replaced by boolean checks to let the threads know if the point they are processing is on the border of the window.
+ */
 template <class T>
 __device__ __forceinline__ int2 bin_search_window(const T *A_local, const T *B_local, 
                                                   int2 K, int2 P, T *M_global, 
-                                                  int tile_base, int tile_height, 
-                                                  bool tile_bottom_border, bool tile_right_border,
+                                                  int window_base, int window_heigth, 
+                                                  bool window_bottom_border, bool window_right_border,
                                                   int block_diag_idx)
 {
-
+  //block_diag_idx is the index of the current diagonal in the block, M_idx is thw global index where the current thread should write
   int M_idx = block_diag_idx + blockIdx.x * BLK_SIZE_WINDOW_K * WINDOWS_PER_BLK;
 
   while (true)
@@ -146,8 +156,8 @@ __device__ __forceinline__ int2 bin_search_window(const T *A_local, const T *B_l
     uint32_t offset = (K.y - P.y) / 2;
     int2 Q = {K.x + (int)offset, K.y - (int)offset};
 
-    bool Q_bottom_border = (Q.y == tile_height) && tile_bottom_border;
-    bool Q_right_border = (Q.x == tile_base) && tile_right_border;
+    bool Q_bottom_border = (Q.y == window_heigth) && window_bottom_border;
+    bool Q_right_border = (Q.x == window_base) && window_right_border;
     bool Q_left_border = (Q.x == 0);
     bool Q_top_border = (Q.y == 0);
 
@@ -181,6 +191,10 @@ __device__ __forceinline__ int2 bin_search_window(const T *A_local, const T *B_l
   }
 }
 
+/**
+ * @brief This kernel implements the merge algorithm given in the reference paper. It assumes that the problem has already been partitioned.
+ * Inside each partition, the algorithm uses a moving window to perform the merge. The merge is performed as diagonal binary searches in shared memory.
+ */
 template <class T>
 __global__ void mergeLarge_window_k(const T *A_ptr,
                                     const size_t A_size,
@@ -194,12 +208,13 @@ __global__ void mergeLarge_window_k(const T *A_ptr,
 
   int last_tid_of_block = BLK_SIZE_WINDOW_K - 1;
 
+  //retrieve the corners of the current partition from global memory
   int2 Q_next = Q_global[blockIdx.x];
   int2 Q_prev = (blockIdx.x > 0) ? Q_global[blockIdx.x - 1] : make_int2(0, 0);
 
+  //compute global position and size of current partition
   int x_start = Q_prev.x;
   int y_start = Q_prev.y;
-
   int base = Q_next.x - Q_prev.x;
   int height = Q_next.y - Q_prev.y;
 
@@ -217,74 +232,86 @@ __global__ void mergeLarge_window_k(const T *A_ptr,
   }
   __syncthreads();
 
-  //keeps track of bottom-right corner of the current tile (in tile int2s)
-  __shared__ int2 Q_tile_t;
+  //keeps track of bottom-right corner of the current window
+  __shared__ int2 Q_window;
 
-  T *A_tile = A_block;
-  T *B_tile = B_block;
+  T *A_window = A_block;
+  T *B_window = B_block;
 
+  //keeps track of the remaining size of the current partition (each window may have a different size)
   int leftover_base = base, leftover_height = height;
 
   //loop over tiles
   for(int tile = 0; tile < WINDOWS_PER_BLK; tile++)
   {
-    int tile_base, tile_height;
-    bool tile_bottom_border, tile_right_border; 
-
+    //index of the current diagonal in the block
     int block_diag_idx = tile * BLK_SIZE_WINDOW_K + threadIdx.x;
+
+    //compute window size and whether it is on the border of the partition
+    int window_base, window_heigth;
+    bool window_bottom_border, window_right_border; 
 
     if(leftover_base <= BLK_SIZE_WINDOW_K)
     {
-      tile_base = leftover_base;
-      tile_right_border = true;
+      window_base = leftover_base;
+      window_right_border = true;
     }
     else
     {
-      tile_base = BLK_SIZE_WINDOW_K;
-      tile_right_border = false;
+      window_base = BLK_SIZE_WINDOW_K;
+      window_right_border = false;
     }
 
     if(leftover_height <= BLK_SIZE_WINDOW_K)
     {
-      tile_height = leftover_height;
-      tile_bottom_border = true;
+      window_heigth = leftover_height;
+      window_bottom_border = true;
     }
     else
     {
-      tile_height = BLK_SIZE_WINDOW_K;
-      tile_bottom_border = false;
+      window_heigth = BLK_SIZE_WINDOW_K;
+      window_bottom_border = false;
     }
 
+    //define K and P for the current thread (in local block coordinates)
     int2 K, P;
 
-    K.x = threadIdx.x <= tile_height ? 0 : threadIdx.x - tile_height;
-    K.y = threadIdx.x <= tile_height ? threadIdx.x : tile_height;
+    K.x = threadIdx.x <= window_heigth ? 0 : threadIdx.x - window_heigth;
+    K.y = threadIdx.x <= window_heigth ? threadIdx.x : window_heigth;
 
-    P.x = threadIdx.x <= tile_base ? threadIdx.x : tile_base;
-    P.y = threadIdx.x <= tile_base ? 0 : threadIdx.x - tile_base;
+    P.x = threadIdx.x <= window_base ? threadIdx.x : window_base;
+    P.y = threadIdx.x <= window_base ? 0 : threadIdx.x - window_base;
 
+    //perform binary search
     int2 Q_temp;
     if(block_diag_idx < height + base)
     {
-      Q_temp = bin_search_window(A_tile, B_tile, K, P, M_ptr, tile_base, tile_height, tile_bottom_border, tile_right_border, block_diag_idx);
+      Q_temp = bin_search_window(A_window, B_window, K, P, M_ptr, window_base, window_heigth, window_bottom_border, window_right_border, block_diag_idx);
     }
 
+    //last thread of the block broadcasts the coordinates of the starting point of the next window
     if(threadIdx.x == last_tid_of_block)
     {
-      Q_tile_t = Q_temp;
+      Q_window = Q_temp;
     }
     __syncthreads();
 
-    leftover_base -= Q_tile_t.x;
-    leftover_height -= Q_tile_t.y;
+    //update pointers and sizes for the next window
+    leftover_base -= Q_window.x;
+    leftover_height -= Q_window.y;
 
-    A_tile += Q_tile_t.y;
-    B_tile += Q_tile_t.x;
+    A_window += Q_window.y;
+    B_window += Q_window.x;
   }
 
   return;  
 }
 
+/**
+ * @brief This kernel improves the previous version. It starts with the same coarse partitioning (referred to as "boxes")
+ * then each block performs a fine-grained partitioning in shared memory.
+ * Finally the fine-grained partititions (tiles) are concurrently merged using a serial merge (one thread per tile).
+ */
 template <class T>
 __global__ void mergeLarge_tiled_k(const T *A_ptr,
                                    const size_t A_size,
@@ -296,37 +323,39 @@ __global__ void mergeLarge_tiled_k(const T *A_ptr,
 
   __shared__ T shared_mem_block[WORK_PER_BLK];
 
+  //retrieve the corners of the current partition from global memory (coarse partitioning)
   int2 Q_next = Q_global[blockIdx.x];
   int2 Q_prev = (blockIdx.x > 0) ? Q_global[blockIdx.x - 1] : make_int2(0, 0);
 
-  unsigned box_x_start = Q_prev.x;
-  unsigned box_y_start = Q_prev.y;
-
-  unsigned box_base = Q_next.x - Q_prev.x;
-  unsigned box_height = Q_next.y - Q_prev.y;
+  //compute global position and size of current partition
+  unsigned x_start = Q_prev.x;
+  unsigned y_start = Q_prev.y;
+  unsigned base = Q_next.x - Q_prev.x;
+  unsigned height = Q_next.y - Q_prev.y;
 
   //shared memory loading
   T *A_block = shared_mem_block;
-  T *B_block = shared_mem_block + box_height;
+  T *B_block = shared_mem_block + height;
   
   // Load A_block
-  for (unsigned i = threadIdx.x; i < box_height; i += BLK_SIZE_TILED_K) {
-      A_block[i] = A_ptr[box_y_start + i];
+  for (unsigned i = threadIdx.x; i < height; i += BLK_SIZE_TILED_K) {
+      A_block[i] = A_ptr[y_start + i];
   }
 
   // Load B_block
-  for (unsigned i = threadIdx.x; i < box_base; i += BLK_SIZE_TILED_K) {
-      B_block[i] = B_ptr[box_x_start + i];
+  for (unsigned i = threadIdx.x; i < base; i += BLK_SIZE_TILED_K) {
+      B_block[i] = B_ptr[x_start + i];
   }
-
   __syncthreads();
 
   //fine grained partitioning in shared memory
-  int2 Q_start = fine_partition(A_block, box_height, B_block, box_base, WORK_PER_THREAD);
+  int2 Q_start = fine_partition(A_block, height, B_block, base, WORK_PER_THREAD);
 
-  T* A_tile = A_block + Q_start.y;
-  T* B_tile = B_block + Q_start.x;
+  T* A_window = A_block + Q_start.y;
+  T* B_window = B_block + Q_start.x;
 
+  //during serial merging, shared memory contains the local input arrays. To avoid allocating more shared memory, 
+  //we temporarily store the merged array in a local variable. Once the merge is complete, we copy it back to shared memory and then to global memory.
   T M_tile[WORK_PER_THREAD];
 
   //perform serial tile merge
@@ -335,16 +364,17 @@ __global__ void mergeLarge_tiled_k(const T *A_ptr,
   //we don't check bounds, end of shared memory will contain garbage for threads that are not in bounds
   for(unsigned item = 0; item < WORK_PER_THREAD; item++)
   {
-    bool insert_A = (Q_start.y + i < box_height) && (Q_start.x + j >= box_base || A_tile[i] < B_tile[j]);
+    //check whether to insert from A or B
+    bool insert_A = (Q_start.y + i < height) && (Q_start.x + j >= base || A_window[i] < B_window[j]);
 
     if(insert_A)
     {
-      M_tile[item] = A_tile[i];
+      M_tile[item] = A_window[i];
       i++;
     }
     else
     {
-      M_tile[item] = B_tile[j];
+      M_tile[item] = B_window[j];
       j++;
     }
   }
@@ -358,9 +388,9 @@ __global__ void mergeLarge_tiled_k(const T *A_ptr,
   __syncthreads();
 
   //store to global memory, here we check bounds
-  unsigned effective_box_size = box_base + box_height; //could be less than WORK_PER_BLK
+  unsigned effective_partition_size = base + height; //could be less than WORK_PER_BLK
   unsigned M_idx_start = Q_prev.x + Q_prev.y;
-  for (unsigned item = threadIdx.x; item < effective_box_size; item += BLK_SIZE_TILED_K)
+  for (unsigned item = threadIdx.x; item < effective_partition_size; item += BLK_SIZE_TILED_K)
   {
     M_ptr[M_idx_start + item] = shared_mem_block[item];
   }

@@ -3,6 +3,10 @@
 //partition_k
 constexpr unsigned THREADS_PER_BLK_PARTITION = 32;
 
+/**
+ * @brief Device function that finds the intersection of the merge path with a diagonal identified by the endpoints K and P.
+ * It is used both in coarse partitioning (partition_k, happens in global memory) and fine partitioning (fine_partition, happens in shared memory).
+ */
 template <class T>
 __device__ __forceinline__ int2 explorative_search(const T *A_ptr, const size_t A_size, 
                                                    const T *B_ptr, const size_t B_size, 
@@ -33,6 +37,9 @@ __device__ __forceinline__ int2 explorative_search(const T *A_ptr, const size_t 
 
 }
 
+/**
+ * @brief Kernel that performs coarse partitioning step. Writes the partitioning points to global memory (Q_global).
+ */
 template <class T>
 __global__ void partition_k(const T *A_ptr, const size_t A_size,
                             const T *B_ptr, const size_t B_size,
@@ -61,6 +68,9 @@ __global__ void partition_k(const T *A_ptr, const size_t A_size,
   }
 }
 
+/*
+ * @brief Device function that performs fine partitioning in shared memory. Used by mergeLarge_tiled_k.
+*/
 template <class T>
 __device__ int2 fine_partition(const T *A_box, const size_t A_size,
                               const T *B_box, const size_t B_size,

@@ -4,6 +4,9 @@
 #include <thrust/execution_policy.h>
 #include <cuda_timing.h>
 
+/**
+ * @brief Host function that benchmarks the thrust merge function. Used to compare both performance and correctness of our custom merge implementations.
+ */
 template <typename T>
 float bench_thrust_merge(T *A, size_t A_size, T *B, size_t B_size, std::vector<T>& out)
 {

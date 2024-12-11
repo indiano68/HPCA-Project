@@ -12,14 +12,15 @@ using std::numeric_limits;
 template <typename T>
 __global__ void mergeSmallBatch_k(T *batches, unsigned short *A_sizes, unsigned N, unsigned short d)
 {
+  //since MAX_BATCH_SIZE is 1024, we can use shared memory to store both input and output
   __shared__ T shared_in[MAX_BATCH_SIZE];
   __shared__ T shared_out[MAX_BATCH_SIZE];
 
   //define indexes
   unsigned batch_per_block = blockDim.x / d;
-  unsigned batch_block_idx = threadIdx.x / d;
-  unsigned thread_local_idx = threadIdx.x - batch_block_idx * d;
-  unsigned thread_global_idx = batch_block_idx + blockIdx.x * batch_per_block;
+  unsigned batch_block_idx = threadIdx.x / d; //Qt 
+  unsigned thread_local_idx = threadIdx.x - batch_block_idx * d; //tidx
+  unsigned thread_global_idx = batch_block_idx + blockIdx.x * batch_per_block; //gbx
 
   //load data into shared memory
   if(thread_global_idx < N)
