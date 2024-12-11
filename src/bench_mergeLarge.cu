@@ -152,7 +152,7 @@ int main(int argc, char **argv)
         time_0 =time_total/counter;
         success = true;
     }
-    /* total_size, A_size, B_size, time */
+    /* total_size, A_size, B_size, time, success */
     std::cout <<vector_out_size<< ", "<< size_A << ", "<< size_B<< ", " << time_0 << ", " << success << std::endl;
     cudaFree(v_A_B_gpu);
     cudaFree(v_out_gpu);

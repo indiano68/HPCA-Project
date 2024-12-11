@@ -4,7 +4,7 @@
 #include <cuda_timing.h>
 #include <utils.hpp>
 
-using v_type = int;
+using v_type = float;
 
 int main(int argc, char **argv)
 {
@@ -65,6 +65,7 @@ int main(int argc, char **argv)
 
   float time_cpu = merge_batch_cpu(A_B_vectors, A_sizes, N, d);
   bool success = (A_B_vectors == vector_out);
+  /* N, d, time_k, time_cpu, success*/
   std::cout << N << ", " << d << ", " << time_kernel_ms << ", " << time_cpu <<", " << success << std::endl;
   cudaFree(v_A_B_gpu);
   cudaFree(v_A_sizes_gpu);

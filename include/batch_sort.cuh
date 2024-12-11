@@ -176,7 +176,7 @@ __global__ void mergeSmallBatch_for_k(T *batches, unsigned N, unsigned short d)
  * @brief Host function to check correctness of the GPU batch sort kernel.
  */
 template <class T>
-void sort_batch_cpu(std::vector<T> &batches, unsigned N, unsigned short d)
+float sort_batch_cpu(std::vector<T> &batches, unsigned N, unsigned short d)
 {
   auto start = std::chrono::high_resolution_clock::now();
   #pragma omp parallel for
@@ -186,5 +186,5 @@ void sort_batch_cpu(std::vector<T> &batches, unsigned N, unsigned short d)
     std::sort(curr_batch_start, curr_batch_start + d);
   }
   auto end = std::chrono::high_resolution_clock::now();
-  std::cout << "CPU sort time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+  return  std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 }
