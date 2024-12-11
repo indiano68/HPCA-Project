@@ -2,6 +2,13 @@
 
 #include <partition.cuh>
 
+/* IMPORTANT
+ * This parameters can be tweaked to see how the performance of the corresponding kernel changes.
+ * The current values are the ones that gave the best performance in our tests, but they work only if sizeof(T) <= 4 bytes (T = float, int, etc.).
+ * This is because the maximum amount of shared memory per block is usually 48KB, so if for exmaple T = double, the kernels won't compile 
+ * with the current configuration and you have to reduce the values so that the shared memory per block usage is less than 48KB.
+ */
+
 //gpuLargeMerge_window_k
 constexpr unsigned BLK_SIZE_WINDOW_K = 512;
 constexpr unsigned WINDOWS_PER_BLK = 12;

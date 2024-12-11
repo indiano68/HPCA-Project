@@ -1,3 +1,8 @@
+/**
+ * @file partition.cuh
+ * @brief This file contains the kernels and device functions to perform merge path partitioning, both coarse (partition_k) and fine (fine_partition).
+ */
+
 #pragma once
 
 //partition_k

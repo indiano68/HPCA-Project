@@ -7,6 +7,7 @@
 
 #pragma once
 
+//Timing of Cuda events can be disabled by removing the definition of CUDA_TIMING.
 #define CUDA_TIMING
 #ifdef CUDA_TIMING
 

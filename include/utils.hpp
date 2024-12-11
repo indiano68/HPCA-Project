@@ -1,3 +1,5 @@
+// Description: Utility functions for the project.
+
 #pragma once
 
 #include <vector>
@@ -20,7 +22,7 @@ using std::numeric_limits;
         }                                                                    \
     } while (0)
 
-__global__ void emptyk(){}; // Empty kernel to warm up the GPU
+__global__ void emptyk(){}; // Empty kernel to warm up the GPU before timing our kernels
 
 template<typename T>
 inline size_t vector_sizeof(const std::vector<T>& vector)
@@ -37,6 +39,7 @@ void generate_random_vector_cpu(std::vector<T>& vector, size_t size, T min = num
   std::generate(vector.begin(), vector.end(), [&]() { return static_cast<T>(dis(gen)); });
 }
 
+// Print GPU information
 void printGPUInfo()
 {
     int nDevices;

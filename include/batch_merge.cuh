@@ -1,3 +1,9 @@
+/**
+ * @file batch_merge.cuh
+ * @brief This file contains cpu and gpu algorithms for batch merging, as weel as a helper function to generate the random batches on the CPU.
+ * It is used in the main_batch.cu file.
+ */
+
 #pragma once
 #include <vector>
 #include <random>
@@ -32,7 +38,8 @@ __global__ void mergeSmallBatch_k(T *batches, unsigned short *A_sizes, unsigned 
   // parallel merge
   if (thread_global_idx < N)
   {
-
+    
+    // define shared memory pointers and retrieve local A size from global memory
     T *batch = shared_in + batch_block_idx * d;
     unsigned local_A_size = A_sizes[thread_global_idx];
     unsigned local_B_size = d - local_A_size;
@@ -40,6 +47,7 @@ __global__ void mergeSmallBatch_k(T *batches, unsigned short *A_sizes, unsigned 
     T *A_local = batch;
     T *B_local = batch + local_A_size;
 
+    // define diagonal endpoints
     uint2 K, P, Q;
 
     K.x = thread_local_idx <= local_A_size ? 0 : thread_local_idx - local_A_size;
@@ -48,6 +56,7 @@ __global__ void mergeSmallBatch_k(T *batches, unsigned short *A_sizes, unsigned 
     P.x = thread_local_idx <= local_B_size ? thread_local_idx : local_B_size;
     P.y = thread_local_idx <= local_B_size ? 0 : thread_local_idx - local_B_size;
 
+    // binary search merge
     while (true)
     {
       unsigned offset = (K.y - P.y) / 2;
@@ -82,7 +91,7 @@ __global__ void mergeSmallBatch_k(T *batches, unsigned short *A_sizes, unsigned 
   }
   __syncthreads();
 
-  // write data back to global memory
+  // write data back to global memory if the thread is within the bounds
   if (thread_global_idx < N)
   {
     batches[blockDim.x * blockIdx.x + threadIdx.x] = shared_out[threadIdx.x];
