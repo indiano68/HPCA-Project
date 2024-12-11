@@ -2,11 +2,39 @@
 #include <config.h> 
 
 template <class T>
-__global__ void partition_k(const T *A_ptr,
-                                       const size_t A_size,
-                                       const T *B_ptr,
-                                       const size_t B_size,
-                                       int2 *Q_global, size_t partition_size)
+__device__ __forceinline__ int2 explorative_search(const T *A_ptr, const size_t A_size, 
+                                                   const T *B_ptr, const size_t B_size, 
+                                                   int2 K, int2 P)
+{
+
+  while (true)
+  {
+    uint32_t offset = (K.y - P.y) / 2;
+    int2 Q = {K.x + (int)offset, K.y - (int)offset};
+
+    if (Q.y == A_size || Q.x == 0 || A_ptr[Q.y] > B_ptr[Q.x - 1])
+    {
+      if (Q.x == B_size || Q.y == 0 || A_ptr[Q.y - 1] <= B_ptr[Q.x])
+      {
+        return Q;
+      }
+      else
+      {
+        K = {Q.x + 1, Q.y - 1};
+      }
+    }
+    else
+    {
+      P = {Q.x - 1, Q.y + 1};
+    }
+  }
+
+}
+
+template <class T>
+__global__ void partition_k(const T *A_ptr, const size_t A_size,
+                            const T *B_ptr, const size_t B_size,
+                            int2 *Q_global, size_t partition_size)
 {
 
   unsigned tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -27,17 +55,13 @@ __global__ void partition_k(const T *A_ptr,
 
     Q_global[tid] = explorative_search(A_ptr, A_size, B_ptr, B_size, K_explorative, P_explorative);
 
-    if constexpr(DEBUG) printf("PARTITION_PACKED: Block %d thread %d diag = %d, K(%d,%d) - P(%d,%d), found Q(%d,%d)\n", blockIdx.x, threadIdx.x, diag, K_explorative.x, K_explorative.y, P_explorative.x, P_explorative.y, Q_global[tid].x, Q_global[tid].y);
-
     return;
   }
 }
 
 template <class T>
-__device__ int2 partition_box(const T *A_box,
-                              const size_t A_size,
-                              const T *B_box,
-                              const size_t B_size,
+__device__ int2 partition_box(const T *A_box, const size_t A_size,
+                              const T *B_box, const size_t B_size,
                               size_t partition_size)
 {
 

@@ -1,7 +1,11 @@
 #pragma once
 
 #include <vector>
+#include <random>
+#include <algorithm>
 #include <stdio.h> // printf
+
+using std::numeric_limits;
 
 // CUDA error checking
 #define CUDA_CHECK(call)                                                     \
@@ -21,6 +25,16 @@ inline size_t vector_sizeof(const std::vector<T>& vector)
 {
     return sizeof(T)*vector.size();
 }
+
+template<typename T>
+void generate_random_vector_cpu(std::vector<T>& vector, size_t size, T min = numeric_limits<T>::min(), T max = numeric_limits<T>::max())
+{
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_real_distribution<double> dis(min, max);
+  std::generate(vector.begin(), vector.end(), [&]() { return static_cast<T>(dis(gen)); });
+}
+
 
 void printGPUInfo()
 {

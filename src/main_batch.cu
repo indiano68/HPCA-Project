@@ -3,6 +3,7 @@
 #include <batch_merge.cuh>
 #define CUDA_TIMING
 #include <cuda_timing.h>
+#include <string>
 
 using v_type = int;
 
@@ -62,5 +63,5 @@ int main(int argc, char **argv)
   cudaFree(v_A_sizes_gpu);
   TIME_EVENT_DESTROY(timing_kernel);
 
-  return;
+  return EXIT_SUCCESS;
 }

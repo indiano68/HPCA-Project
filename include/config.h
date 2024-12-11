@@ -18,11 +18,6 @@ constexpr unsigned N_ITER = 1;
 
 typedef int2 coordinate;
 
-int constexpr DEBUG = false;
-
 //test cases
 const std::vector<int> A_TEST = {30, 50, 60, 80, 110};
 const std::vector<int> B_TEST = {10, 20, 40, 70, 90, 100, 120};
-
-// const std::vector<int> A_TEST = {3,5,6,8,10};
-// const std::vector<int> B_TEST = {9,21,41,71,91,101,121};

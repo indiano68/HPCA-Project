@@ -2,10 +2,7 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
-#include <random>
 #include <chrono>
-
-using std::numeric_limits;
 
 //works only id d is a power of 2
 template <typename T>
@@ -177,16 +174,6 @@ __global__ void sortSmallBatch_k(T *batches, unsigned N, unsigned short d)
   }
 
   return;
-}
-
-template <class T>
-void build_M_batches(std::vector<T> &batches, unsigned N, unsigned short d, T min = numeric_limits<T>::min(), T max = numeric_limits<T>::max())
-{
-  std::cout << "Generating " << N << " random batches of size " << d << " ..." << std::endl;
-  std::random_device rd;
-  std::mt19937 gen(rd());
-  std::uniform_real_distribution<double> dis(min, max);
-  std::generate(batches.begin(), batches.end(), [&dis, &gen]() { return static_cast<T>(dis(gen)); });
 }
 
 template <class T>

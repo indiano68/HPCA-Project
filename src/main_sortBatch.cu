@@ -1,6 +1,7 @@
 #include <iostream>
 #include <utils.hpp>
 #include <batch_sort.cuh>
+#include <string>
 
 #define CUDA_TIMING
 #include <cuda_timing.h>
@@ -37,7 +38,7 @@ int main(int argc, char **argv)
   unsigned short d = static_cast<unsigned short>(d_arg);
 
   std::vector<v_type> batches(N * d);
-  build_M_batches(batches, N, d);
+  generate_random_vector_cpu(batches, N * d);
 
   std::vector<v_type> vector_out(N * d);
   v_type *v_M_gpu;
@@ -78,5 +79,5 @@ int main(int argc, char **argv)
   cudaFree(v_M_gpu);
   TIME_EVENT_DESTROY(timing_kernel);
 
-  return;
+  return EXIT_SUCCESS;
 }

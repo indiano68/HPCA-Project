@@ -1,39 +1,7 @@
 #pragma once
-#include <vector>
+
 #include <diag_search.cuh>
 #include <partition.cuh>
-
-template <class T>
-__global__ void mergeSmall_k_gpu_seq(const T *A_ptr,
-                                     const size_t A_size,
-                                     const T *B_ptr,
-                                     const size_t B_size,
-                                     T *M_ptr,
-                                     const size_t M_size)
-{
-    static_assert(std::is_arithmetic<T>::value, "Template type must be numeric");
-
-    size_t i = 0, j = 0;
-
-    while (i + j < M_size)
-    {
-        if (i >= A_size)
-        {
-            M_ptr[i + j] = B_ptr[j];
-            j++;
-        }
-        else if (j >= B_size || A_ptr[i] < B_ptr[j])
-        {
-            M_ptr[i + j] = A_ptr[i];
-            i++;
-        }
-        else
-        {
-            M_ptr[i + j] = B_ptr[j];
-            j++;
-        }
-    }
-}
 
 template <class T>
 __global__ void mergeSmall_k(const T *v_1_ptr,
@@ -94,12 +62,12 @@ __global__ void mergeSmall_k(const T *v_1_ptr,
 }
 
 template <class T>
-__global__ void merge_k_naive(const T *v_1_ptr,
-                              const size_t v_1_size,
-                              const T *v_2_ptr,
-                              const size_t v_2_size,
-                              T *v_out_ptr,
-                              const size_t v_out_size)
+__global__ void mergeLarge_naive_k(const T *v_1_ptr,
+                                   const size_t v_1_size,
+                                   const T *v_2_ptr,
+                                   const size_t v_2_size,
+                                   T *v_out_ptr,
+                                   const size_t v_out_size)
 {
     int thread_idx = threadIdx.x + blockIdx.x * blockDim.x;
     coordinate K = {0, 0};
@@ -152,93 +120,62 @@ __global__ void merge_k_naive(const T *v_1_ptr,
 }
 
 template <class T>
-__global__ void merge_k_blocked(const T *v_1_ptr,
-                                const int v_1_size,
-                                const T *v_2_ptr,
-                                const int v_2_size,
-                                T *v_out_ptr,
-                                const int v_out_size,
-                                const int2* v_Q_ptr)
+__device__ __forceinline__ int2 bin_search_window(const T *A_local, const T *B_local, 
+                                                  int2 K, int2 P, T *M_global, 
+                                                  int tile_base, int tile_height, 
+                                                  bool tile_bottom_border, bool tile_right_border,
+                                                  int block_diag_idx)
 {
-    int2 K = {0, 0};
-    int2 P = {0, 0};
-    int2 Q = {0, 0};
-    int2 Q_base = v_Q_ptr[blockIdx.x];
-    int2 Q_end;
-    if(blockIdx.x != gridDim.x-1)
-    {
-        Q_end = v_Q_ptr[blockIdx.x +1];
-    }
-    else
-    {
-        Q_end.x = v_2_size;
-        Q_end.y = v_1_size;
-    }
-    int v_1_blocked_size = Q_end.y - Q_base.y;
-    int v_2_blocked_size = Q_end.x - Q_base.x;
-    if (threadIdx.x > v_1_blocked_size)
-    {
-        K.x = threadIdx.x - v_1_blocked_size;
-        K.y = v_1_blocked_size;
-        P.x = v_1_blocked_size;
-        P.y = threadIdx.x - v_1_blocked_size;
-    }
-    else
-    {
-        K.y = threadIdx.x;
-        P.x = threadIdx.x;
-    }
-    __shared__ T total [THREADS_PER_BLOCK];
 
-    T * v_blocked_1_ptr = total;
-    T * v_blocked_2_ptr = total+v_1_blocked_size;
+  int M_idx = block_diag_idx + blockIdx.x * TILE_SIZE * TILES_PER_BLOCK;
 
-    if(threadIdx.x<v_1_blocked_size)
-        v_blocked_1_ptr[threadIdx.x] = v_1_ptr[Q_base.y + threadIdx.x];
-    else if(threadIdx.x<v_1_blocked_size+v_2_blocked_size)
-        v_blocked_2_ptr[threadIdx.x - v_1_blocked_size] = v_2_ptr[Q_base.x + threadIdx.x-v_1_blocked_size];
-    __syncthreads();
+  while (true)
+  {
+    uint32_t offset = (K.y - P.y) / 2;
+    int2 Q = {K.x + (int)offset, K.y - (int)offset};
 
-    while (true && threadIdx.x < v_1_blocked_size+v_2_blocked_size)
+    bool Q_bottom_border = (Q.y == tile_height) && tile_bottom_border;
+    bool Q_right_border = (Q.x == tile_base) && tile_right_border;
+    bool Q_left_border = (Q.x == 0);
+    bool Q_top_border = (Q.y == 0);
+
+    if (Q_bottom_border || Q_left_border || A_local[Q.y] > B_local[Q.x - 1])
     {
-        size_t offset = abs((K.y - P.y)) / 2;
-        Q.x = K.x + offset;
-        Q.y = K.y - offset;
-        if (Q.y >= 0 && Q.x <= v_2_blocked_size && (Q.y == v_1_blocked_size || Q.x == 0 || v_blocked_1_ptr[Q.y] > v_blocked_2_ptr[Q.x - 1]))
+      if (Q_right_border || Q_top_border || A_local[Q.y - 1] <= B_local[Q.x])
+      {
+        if (!Q_bottom_border && (Q_right_border || A_local[Q.y] <= B_local[Q.x]))
         {
-            if (Q.x == v_2_blocked_size || Q.y == 0 || v_blocked_1_ptr[Q.y - 1] <= v_blocked_2_ptr[Q.x])
-            {
-                if (Q.y < v_1_blocked_size && (Q.x == v_2_blocked_size || v_blocked_1_ptr[Q.y] <= v_blocked_2_ptr[Q.x]))
-                {
-                    v_out_ptr[Q_base.x + Q_base.y + threadIdx.x] = v_blocked_1_ptr[Q.y];
-                }
-                else
-                {
-                    v_out_ptr[Q_base.x + Q_base.y + threadIdx.x] = v_blocked_2_ptr[Q.x];
-                }
-                break;
-            }
-            else
-            {
-                K.x = Q.x + 1;
-                K.y = Q.y - 1;
-            }
+          M_global[M_idx] = A_local[Q.y];
+          //if inserting from A, merge path goes down
+          Q.y++;
         }
         else
         {
-            P.x = Q.x - 1;
-            P.y = Q.y + 1;
+          M_global[M_idx] = B_local[Q.x];
+          //if inserting from B, merge path goes right
+          Q.x++;
         }
+        return Q;
+      }
+      else
+      {
+        K = {Q.x + 1, Q.y - 1};
+      }
     }
+    else
+    {
+      P = {Q.x - 1, Q.y + 1};
+    }
+  }
 }
 
 template <class T>
-__global__ void merge_k_gpu_window(const T *A_ptr,
-                                   const size_t A_size,
-                                   const T *B_ptr,
-                                   const size_t B_size,
-                                   T *M_ptr,
-                                   const int2 *Q_global)
+__global__ void mergeLarge_window_k(const T *A_ptr,
+                                    const size_t A_size,
+                                    const T *B_ptr,
+                                    const size_t B_size,
+                                    T *M_ptr,
+                                    const int2 *Q_global)
 {
 
   __shared__ T shared_mem_block[TILE_SIZE * TILES_PER_BLOCK];
@@ -254,38 +191,19 @@ __global__ void merge_k_gpu_window(const T *A_ptr,
   int base = Q_next.x - Q_prev.x;
   int height = Q_next.y - Q_prev.y;
 
-  if constexpr(DEBUG) if(threadIdx.x == 0)
-  {
-    printf("Block %d, Q_next(%d,%d) Q_prev(%d,%d), base = %d, height = %d\n", blockIdx.x, Q_next.x, Q_next.y, Q_prev.x, Q_prev.y, base, height);
-  }
-
   //shared memory loading
   T *A_block = shared_mem_block;
   T *B_block = shared_mem_block + height;
-  {
-    int tiles;
-    for(tiles = 0; tiles < height / TILE_SIZE; tiles++)
-    {
-      A_block[threadIdx.x + tiles * TILE_SIZE] = A_ptr[y_start + threadIdx.x + tiles * TILE_SIZE];
-    }
 
-    if (threadIdx.x + tiles * TILE_SIZE < height)
-    {
-      A_block[threadIdx.x + tiles * TILE_SIZE] = A_ptr[y_start + threadIdx.x + tiles * TILE_SIZE];
-    }
-
-    for(tiles = 0; tiles < base / TILE_SIZE; tiles++)
-    {
-      B_block[threadIdx.x + tiles * TILE_SIZE] = B_ptr[x_start + threadIdx.x + tiles * TILE_SIZE];
-    }
-
-    if (threadIdx.x + tiles * TILE_SIZE < base)
-    {
-      B_block[threadIdx.x + tiles * TILE_SIZE] = B_ptr[x_start + threadIdx.x + tiles * TILE_SIZE];
-    }
-    if constexpr(DEBUG) print_shared(A_block, B_block, base, height);
-    __syncthreads();
+  for (unsigned i = threadIdx.x; i < height; i += TILE_SIZE) {
+      A_block[i] = A_ptr[y_start + i];
   }
+
+  // Load B_block
+  for (unsigned i = threadIdx.x; i < base; i += TILE_SIZE) {
+      B_block[i] = B_ptr[x_start + i];
+  }
+  __syncthreads();
 
   //keeps track of bottom-right corner of the current tile (in tile coordinates)
   __shared__ int2 Q_tile_t;
@@ -336,7 +254,7 @@ __global__ void merge_k_gpu_window(const T *A_ptr,
     int2 Q_temp;
     if(block_diag_idx < height + base)
     {
-      Q_temp = block_bin_search_tiled(A_tile, B_tile, K, P, M_ptr, tile_base, tile_height, tile_bottom_border, tile_right_border, block_diag_idx);
+      Q_temp = bin_search_window(A_tile, B_tile, K, P, M_ptr, tile_base, tile_height, tile_bottom_border, tile_right_border, block_diag_idx);
     }
 
     if(threadIdx.x == last_tid_of_block)
@@ -344,11 +262,6 @@ __global__ void merge_k_gpu_window(const T *A_ptr,
       Q_tile_t = Q_temp;
     }
     __syncthreads();
-
-    if constexpr(DEBUG) if(threadIdx.x == 0 || threadIdx.x == last_tid_of_block)
-    {
-        printf("Block %d, tile %d, block_diag_idx = %d, search range: K(%d,%d) - P(%d,%d), found Q_tile(%d,%d), leftover_base = %d, leftover_height = %d, A_tile[0] = %d, B_tile[0] = %d\n", blockIdx.x, tile, block_diag_idx, K.x, K.y, P.x, P.y, Q_tile_t.x, Q_tile_t.y, leftover_base, leftover_height, A_tile[0], B_tile[0]);
-    }
 
     leftover_base -= Q_tile_t.x;
     leftover_height -= Q_tile_t.y;
@@ -361,12 +274,12 @@ __global__ void merge_k_gpu_window(const T *A_ptr,
 }
 
 template <class T>
-__global__ void merge_k_gpu_serial_tiled(const T *A_ptr,
-                                        const size_t A_size,
-                                        const T *B_ptr,
-                                        const size_t B_size,
-                                        T *M_ptr,
-                                        const int2 *Q_global)
+__global__ void mergeLarge_tiled_k(const T *A_ptr,
+                                   const size_t A_size,
+                                   const T *B_ptr,
+                                   const size_t B_size,
+                                   T *M_ptr,
+                                   const int2 *Q_global)
 {
 
   __shared__ T shared_mem_block[BOX_SIZE];
@@ -379,11 +292,6 @@ __global__ void merge_k_gpu_serial_tiled(const T *A_ptr,
 
   unsigned box_base = Q_next.x - Q_prev.x;
   unsigned box_height = Q_next.y - Q_prev.y;
-
-  if constexpr(DEBUG) if(threadIdx.x == 0)
-  {
-    printf("Block %d, Q_next(%d,%d) Q_prev(%d,%d), box_base = %d, box_height = %d\n", blockIdx.x, Q_next.x, Q_next.y, Q_prev.x, Q_prev.y, box_base, box_height);
-  }
 
   //shared memory loading
   T *A_block = shared_mem_block;
@@ -399,7 +307,6 @@ __global__ void merge_k_gpu_serial_tiled(const T *A_ptr,
       B_block[i] = B_ptr[box_x_start + i];
   }
 
-  if constexpr(DEBUG) print_shared(A_block, B_block, box_base, box_height);
   __syncthreads();
 
   //fine grained partitioning in shared memory

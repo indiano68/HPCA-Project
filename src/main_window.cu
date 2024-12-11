@@ -9,6 +9,7 @@
 #include <thrust_merge.cuh>
 #include <thrust/sort.h>
 #include <randomCudaVector.cuh>
+#include <string>
 
 using v_type = float;
 
@@ -81,7 +82,8 @@ int main(int argc, char **argv)
     cudaMalloc(&v_Q_gpu_0     , grid_0.x * sizeof(int2));
     cudaMalloc(&v_Q_gpu_1     , grid_1.x * sizeof(int2));
 
-    generate_random_vectors_cuda(v_A_gpu, size_A, v_B_gpu, size_B);
+    generate_random_vector_gpu(v_A_gpu, size_A);
+    generate_random_vector_gpu(v_B_gpu, size_B);
 
     thrust::sort(thrust::device, v_A_gpu, v_A_gpu + size_A);
     thrust::sort(thrust::device, v_B_gpu, v_B_gpu + size_B);
@@ -103,7 +105,7 @@ int main(int argc, char **argv)
                                                                             v_Q_gpu_0, TILE_SIZE * TILES_PER_BLOCK);
         TIME_STOP_SAVE(timing_partitioning_0, time_partitioning_0);
 
-        merge_k_gpu_window<<<grid_0, TILE_SIZE>>>(v_A_gpu, size_A,
+        mergeLarge_window_k<<<grid_0, TILE_SIZE>>>(v_A_gpu, size_A,
                                                        v_B_gpu, size_B,
                                                        v_out_gpu, v_Q_gpu_0);
     }
@@ -115,7 +117,7 @@ int main(int argc, char **argv)
     
     /*
     ########################################
-        Benchmarking of serial_tile Kernel
+        Benchmarking of tiled Kernel
     ########################################
     */
     emptyk<<<1, 1>>>();
@@ -127,7 +129,7 @@ int main(int argc, char **argv)
                                                                                        v_Q_gpu_1, BOX_SIZE);
         TIME_STOP_SAVE(timing_partitioning_1, time_partitioning_1);
 
-        merge_k_gpu_serial_tiled<<<grid_1, THREADS_PER_BOX>>>(v_A_gpu, size_A,
+        mergeLarge_tiled_k<<<grid_1, THREADS_PER_BOX>>>(v_A_gpu, size_A,
                                                                               v_B_gpu, size_B,
                                                                               v_out_gpu, v_Q_gpu_1);
     }
@@ -140,7 +142,7 @@ int main(int argc, char **argv)
 
     std::cout << "Time Thrust:      " << time_thrust << std::endl;
     std::cout << "Time window:      " << time_0 / N_ITER << " | Partition T " << time_partitioning_0 / N_ITER << std::endl;
-    std::cout << "Time serial_tile: " << time_1 / N_ITER << " | Partition T " << time_partitioning_1 / N_ITER << std::endl;
+    std::cout << "Time tiled: " << time_1 / N_ITER << " | Partition T " << time_partitioning_1 / N_ITER << std::endl;
 
 
     cudaFree(v_A_B_gpu),
