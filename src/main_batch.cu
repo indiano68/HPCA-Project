@@ -1,14 +1,11 @@
 #include <iostream>
-#include <utils.hpp>
-#include <batch_merge.cuh>
-#define CUDA_TIMING
-#include <cuda_timing.h>
 #include <string>
+#include <batch_merge.cuh>
+#include <cuda_timing.h>
+#include <utils.hpp>
 
 using v_type = int;
 
-__global__ void emptyk(){};
-static constexpr unsigned short MAX_BATCH_SIZE = 1024;
 
 int main(int argc, char **argv)
 {

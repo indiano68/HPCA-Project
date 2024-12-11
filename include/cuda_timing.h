@@ -7,6 +7,7 @@
 
 #pragma once
 
+#define CUDA_TIMING
 #ifdef CUDA_TIMING
 
 typedef char time_event;

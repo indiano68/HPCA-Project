@@ -1,7 +1,18 @@
 #pragma once
 
-#include <diag_search.cuh>
 #include <partition.cuh>
+
+//gpuLargeMerge_window_k
+constexpr unsigned BLK_SIZE_WINDOW_K = 512;
+constexpr unsigned WINDOWS_PER_BLK = 12;
+
+//gpuMergeLarge_tiled_k
+constexpr unsigned BLK_SIZE_TILED_K = 512; // CUDA block size
+constexpr unsigned WORK_PER_THREAD = 15; // number of consecutive elements to process per thread
+constexpr unsigned WORK_PER_BLK = BLK_SIZE_TILED_K * WORK_PER_THREAD; // number of elements to process per block
+
+//gpuMergeLarge_naive_k
+constexpr unsigned BLK_SIZE_NAIVE_K = 512;
 
 template <class T>
 __global__ void mergeSmall_k(const T *v_1_ptr,
@@ -12,9 +23,9 @@ __global__ void mergeSmall_k(const T *v_1_ptr,
                              const size_t v_out_size)
 {
     int thread_idx = threadIdx.x;
-    coordinate K = {0, 0};
-    coordinate P = {0, 0};
-    coordinate Q = {0, 0};
+    int2 K = {0, 0};
+    int2 P = {0, 0};
+    int2 Q = {0, 0};
     if (thread_idx > v_1_size)
     {
         K.x = thread_idx - v_1_size;
@@ -66,13 +77,14 @@ __global__ void mergeLarge_naive_k(const T *v_1_ptr,
                                    const size_t v_1_size,
                                    const T *v_2_ptr,
                                    const size_t v_2_size,
-                                   T *v_out_ptr,
-                                   const size_t v_out_size)
+                                   T *v_out_ptr)
 {
     int thread_idx = threadIdx.x + blockIdx.x * blockDim.x;
-    coordinate K = {0, 0};
-    coordinate P = {0, 0};
-    coordinate Q = {0, 0};
+    unsigned v_out_size = v_1_size + v_2_size;
+
+    int2 K = {0, 0};
+    int2 P = {0, 0};
+    int2 Q = {0, 0};
     if (thread_idx > v_1_size)
     {
         K.x = thread_idx - v_1_size;
@@ -127,7 +139,7 @@ __device__ __forceinline__ int2 bin_search_window(const T *A_local, const T *B_l
                                                   int block_diag_idx)
 {
 
-  int M_idx = block_diag_idx + blockIdx.x * TILE_SIZE * TILES_PER_BLOCK;
+  int M_idx = block_diag_idx + blockIdx.x * BLK_SIZE_WINDOW_K * WINDOWS_PER_BLK;
 
   while (true)
   {
@@ -178,9 +190,9 @@ __global__ void mergeLarge_window_k(const T *A_ptr,
                                     const int2 *Q_global)
 {
 
-  __shared__ T shared_mem_block[TILE_SIZE * TILES_PER_BLOCK];
+  __shared__ T shared_mem_block[BLK_SIZE_WINDOW_K * WINDOWS_PER_BLK];
 
-  int last_tid_of_block = TILE_SIZE - 1;
+  int last_tid_of_block = BLK_SIZE_WINDOW_K - 1;
 
   int2 Q_next = Q_global[blockIdx.x];
   int2 Q_prev = (blockIdx.x > 0) ? Q_global[blockIdx.x - 1] : make_int2(0, 0);
@@ -195,17 +207,17 @@ __global__ void mergeLarge_window_k(const T *A_ptr,
   T *A_block = shared_mem_block;
   T *B_block = shared_mem_block + height;
 
-  for (unsigned i = threadIdx.x; i < height; i += TILE_SIZE) {
+  for (unsigned i = threadIdx.x; i < height; i += BLK_SIZE_WINDOW_K) {
       A_block[i] = A_ptr[y_start + i];
   }
 
   // Load B_block
-  for (unsigned i = threadIdx.x; i < base; i += TILE_SIZE) {
+  for (unsigned i = threadIdx.x; i < base; i += BLK_SIZE_WINDOW_K) {
       B_block[i] = B_ptr[x_start + i];
   }
   __syncthreads();
 
-  //keeps track of bottom-right corner of the current tile (in tile coordinates)
+  //keeps track of bottom-right corner of the current tile (in tile int2s)
   __shared__ int2 Q_tile_t;
 
   T *A_tile = A_block;
@@ -214,32 +226,32 @@ __global__ void mergeLarge_window_k(const T *A_ptr,
   int leftover_base = base, leftover_height = height;
 
   //loop over tiles
-  for(int tile = 0; tile < TILES_PER_BLOCK; tile++)
+  for(int tile = 0; tile < WINDOWS_PER_BLK; tile++)
   {
     int tile_base, tile_height;
     bool tile_bottom_border, tile_right_border; 
 
-    int block_diag_idx = tile * TILE_SIZE + threadIdx.x;
+    int block_diag_idx = tile * BLK_SIZE_WINDOW_K + threadIdx.x;
 
-    if(leftover_base <= TILE_SIZE)
+    if(leftover_base <= BLK_SIZE_WINDOW_K)
     {
       tile_base = leftover_base;
       tile_right_border = true;
     }
     else
     {
-      tile_base = TILE_SIZE;
+      tile_base = BLK_SIZE_WINDOW_K;
       tile_right_border = false;
     }
 
-    if(leftover_height <= TILE_SIZE)
+    if(leftover_height <= BLK_SIZE_WINDOW_K)
     {
       tile_height = leftover_height;
       tile_bottom_border = true;
     }
     else
     {
-      tile_height = TILE_SIZE;
+      tile_height = BLK_SIZE_WINDOW_K;
       tile_bottom_border = false;
     }
 
@@ -282,7 +294,7 @@ __global__ void mergeLarge_tiled_k(const T *A_ptr,
                                    const int2 *Q_global)
 {
 
-  __shared__ T shared_mem_block[BOX_SIZE];
+  __shared__ T shared_mem_block[WORK_PER_BLK];
 
   int2 Q_next = Q_global[blockIdx.x];
   int2 Q_prev = (blockIdx.x > 0) ? Q_global[blockIdx.x - 1] : make_int2(0, 0);
@@ -298,19 +310,19 @@ __global__ void mergeLarge_tiled_k(const T *A_ptr,
   T *B_block = shared_mem_block + box_height;
   
   // Load A_block
-  for (unsigned i = threadIdx.x; i < box_height; i += THREADS_PER_BOX) {
+  for (unsigned i = threadIdx.x; i < box_height; i += BLK_SIZE_TILED_K) {
       A_block[i] = A_ptr[box_y_start + i];
   }
 
   // Load B_block
-  for (unsigned i = threadIdx.x; i < box_base; i += THREADS_PER_BOX) {
+  for (unsigned i = threadIdx.x; i < box_base; i += BLK_SIZE_TILED_K) {
       B_block[i] = B_ptr[box_x_start + i];
   }
 
   __syncthreads();
 
   //fine grained partitioning in shared memory
-  int2 Q_start = partition_box(A_block, box_height, B_block, box_base, WORK_PER_THREAD);
+  int2 Q_start = fine_partition(A_block, box_height, B_block, box_base, WORK_PER_THREAD);
 
   T* A_tile = A_block + Q_start.y;
   T* B_tile = B_block + Q_start.x;
@@ -346,9 +358,9 @@ __global__ void mergeLarge_tiled_k(const T *A_ptr,
   __syncthreads();
 
   //store to global memory, here we check bounds
-  unsigned effective_box_size = box_base + box_height; //could be less than BOX_SIZE
+  unsigned effective_box_size = box_base + box_height; //could be less than WORK_PER_BLK
   unsigned M_idx_start = Q_prev.x + Q_prev.y;
-  for (unsigned item = threadIdx.x; item < effective_box_size; item += THREADS_PER_BOX)
+  for (unsigned item = threadIdx.x; item < effective_box_size; item += BLK_SIZE_TILED_K)
   {
     M_ptr[M_idx_start + item] = shared_mem_block[item];
   }

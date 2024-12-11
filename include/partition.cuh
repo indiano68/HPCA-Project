@@ -1,5 +1,7 @@
 #pragma once
-#include <config.h> 
+
+//partition_k
+constexpr unsigned THREADS_PER_BLK_PARTITION = 32;
 
 template <class T>
 __device__ __forceinline__ int2 explorative_search(const T *A_ptr, const size_t A_size, 
@@ -60,7 +62,7 @@ __global__ void partition_k(const T *A_ptr, const size_t A_size,
 }
 
 template <class T>
-__device__ int2 partition_box(const T *A_box, const size_t A_size,
+__device__ int2 fine_partition(const T *A_box, const size_t A_size,
                               const T *B_box, const size_t B_size,
                               size_t partition_size)
 {

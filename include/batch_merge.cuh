@@ -4,13 +4,16 @@
 #include <algorithm>
 #include <chrono>
 
+// d <= 1024
+static constexpr unsigned short MAX_BATCH_SIZE = 1024;
+
 using std::numeric_limits;
 
 template <typename T>
 __global__ void mergeSmallBatch_k(T *batches, unsigned short *A_sizes, unsigned N, unsigned short d)
 {
-  __shared__ T shared_in[1024];
-  __shared__ T shared_out[1024];
+  __shared__ T shared_in[MAX_BATCH_SIZE];
+  __shared__ T shared_out[MAX_BATCH_SIZE];
 
   //define indexes
   unsigned batch_per_block = blockDim.x / d;

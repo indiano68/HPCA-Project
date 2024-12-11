@@ -4,18 +4,19 @@
 #include <algorithm>
 #include <chrono>
 
+// d <= 1024
+constexpr unsigned short MAX_BATCH_SIZE = 1024;
+
 //works only id d is a power of 2
 template <typename T>
 __global__ void mergeSmallBatch_for_k(T *batches, unsigned N, unsigned short d)
 {
-  __shared__ T shared_in[1024];
-  __shared__ T shared_out[1024];
+  __shared__ T shared_in[MAX_BATCH_SIZE];
+  __shared__ T shared_out[MAX_BATCH_SIZE];
 
   //define indexes
-  unsigned batch_per_block = blockDim.x / d;
   unsigned batch_block_idx = threadIdx.x / d;
   unsigned thread_local_idx = threadIdx.x - batch_block_idx * d;
-  unsigned thread_global_idx = batch_block_idx + blockIdx.x * batch_per_block;
 
   //load data into shared memory
   // if(thread_global_idx < N)
@@ -91,9 +92,9 @@ template <typename T>
 __global__ void sortSmallBatch_k(T *batches, unsigned N, unsigned short d)
 {
 
-  __shared__ T shared_mem[2048];
+  __shared__ T shared_mem[2 * MAX_BATCH_SIZE];
   T *shared_in = shared_mem;
-  T *shared_out = shared_mem + 1024;
+  T *shared_out = shared_mem + MAX_BATCH_SIZE;
 
   //unsigned global_idx = threadIdx.x / d + blockIdx.x * (blockDim.x / d);
 

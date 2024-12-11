@@ -1,16 +1,11 @@
 #include <iostream>
-#include <utils.hpp>
-#include <batch_sort.cuh>
 #include <string>
+#include <batch_sort.cuh>
+#include <utils.hpp>
 
-#define CUDA_TIMING
 #include <cuda_timing.h>
 
 using v_type = int;
-
-__global__ void emptyk(){};
-
-#define MAX_BATCH_SIZE 1024
 
 #define for_merge false
 
@@ -57,7 +52,7 @@ int main(int argc, char **argv)
   //kernel call
   emptyk<<<1, 1>>>();
   TIME_START(timing_kernel);
-  if constexpr(for_merge)
+  if(for_merge)
   {
     for(unsigned merge_lenght = 2; merge_lenght <= d; merge_lenght *= 2)
     {

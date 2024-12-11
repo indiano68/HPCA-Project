@@ -20,6 +20,8 @@ using std::numeric_limits;
         }                                                                    \
     } while (0)
 
+__global__ void emptyk(){}; // Empty kernel to warm up the GPU
+
 template<typename T>
 inline size_t vector_sizeof(const std::vector<T>& vector)
 {
@@ -34,7 +36,6 @@ void generate_random_vector_cpu(std::vector<T>& vector, size_t size, T min = num
   std::uniform_real_distribution<double> dis(min, max);
   std::generate(vector.begin(), vector.end(), [&]() { return static_cast<T>(dis(gen)); });
 }
-
 
 void printGPUInfo()
 {
