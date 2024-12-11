@@ -1,10 +1,12 @@
 cuCC = nvcc
 NULL = /dev/null
+ECHO_FLAG = 
 ifeq ($(OS),Windows_NT)
     CL_PATH ?= "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.41.34120/bin/HostX64/x64/cl.exe"
     cuCFLAGS = -ccbin $(CL_PATH) -allow-unsupported-compiler -Xcompiler -O2 -D_WIN_ -std=c++17
     EXEC = .exe
 	NULL = nul
+	ECHO_FLAG = -e
 else
     cuCFLAGS = -O3 -std=c++17
     EXEC = 
@@ -19,9 +21,9 @@ BIN_FILES = $(patsubst  $(SRC_DIR)/%.cu,$(BUILD_DIR)/%$(EXEC),$(wildcard $(SRC_D
 all: $(BUILD_DIR) $(BIN_FILES)
 
 $(BIN_FILES):  $(BUILD_DIR)/%$(EXEC): $(SRC_DIR)/%.cu $(INC_DIR)/*
-	@echo -e "\e[1;34m Compiling $@ ... \e[0m" 
+	@echo $(ECHO_FLAG) "\e[1;34mCompiling $@ ... \e[0m" 
 	@$(cuCC) $< $(cuCFLAGS) -I $(INC_DIR) -o $@ 
-	@echo -e "\e[1;32m  $@ compiled! \e[0m" 
+	@echo $(ECHO_FLAG)"\e[1;32m$@ compiled! \e[0m" 
 
 # Create build directories if they do not exist
 $(BUILD_DIR):
