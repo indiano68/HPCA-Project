@@ -21,9 +21,9 @@ BIN_FILES = $(patsubst  $(SRC_DIR)/%.cu,$(BUILD_DIR)/%$(EXEC),$(wildcard $(SRC_D
 all: $(BUILD_DIR) $(BIN_FILES)
 
 $(BIN_FILES):  $(BUILD_DIR)/%$(EXEC): $(SRC_DIR)/%.cu $(INC_DIR)/*
-	@printf "\033[1;34mCompiling $@ ... \033[0m \n" 
+	@printf "\033[0;34mCompiling $@ ... \033[0m \n" 
 	@$(cuCC) $< $(cuCFLAGS) -I $(INC_DIR) -o $@ 
-	@printf "\033[1;32m$@ compiled! \033[0m \n" 
+	@printf "\033[0;32m$@ compiled! \033[0m \n" 
 
 # Create build directories if they do not exist
 $(BUILD_DIR):
