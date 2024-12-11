@@ -6,7 +6,7 @@ ifeq ($(OS),Windows_NT)
     EXEC = .exe
 	NULL = nul
 else
-    cuCFLAGS = -Ofast -std=c++17
+    cuCFLAGS = -O3 -std=c++17
     EXEC = 
 endif
 
