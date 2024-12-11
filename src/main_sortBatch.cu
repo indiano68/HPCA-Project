@@ -10,8 +10,9 @@ using v_type = int;
 
 __global__ void emptyk(){};
 
-static constexpr unsigned short MAX_BATCH_SIZE = 1024;
-static bool constexpr for_merge = false;
+#define MAX_BATCH_SIZE 1024
+
+#define for_merge false
 
 int main(int argc, char **argv)
 {
