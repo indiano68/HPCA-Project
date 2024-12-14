@@ -51,6 +51,7 @@ int main(int argc, char **argv)
   //define number of threads and blocks
   unsigned num_threads = min(MAX_BATCH_SIZE, N * d);
   unsigned num_blocks = (N * d + num_threads - 1) / num_threads;
+  std::cout << "Sorting " << N << " batches of size " << d << std::endl;
   std::cout << "num_threads: " << num_threads << ", num_blocks: " << num_blocks << std::endl;
 
   //kernel call
